@@ -1,0 +1,26 @@
+{
+  "name": "nickflix",
+  "version": "1.0.0",
+  "description": "NickFlix — stream torrents in the browser and watch together in synced watch parties.",
+  "type": "module",
+  "main": "server/index.js",
+  "license": "MIT",
+  "author": "Nick",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "check": "node --check server/index.js"
+  },
+  "dependencies": {
+    "compression": "^1.8.0",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2",
+    "socket.io": "^4.8.1",
+    "video.js": "8.24.2",
+    "webtorrent": "^3.0.21"
+  }
+}

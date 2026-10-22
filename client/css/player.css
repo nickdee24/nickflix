@@ -1,0 +1,214 @@
+/* ==========================================================================
+   Player — Video.js does decoding, text tracks and fullscreen plumbing;
+   every visible control is ours, styled like Truck Dash map controls.
+   ========================================================================== */
+.player {
+  position: relative;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-height: calc(100dvh - 210px);
+  min-height: 220px;
+  box-shadow: var(--shadow-2);
+  isolation: isolate;
+  user-select: none;
+  --sub-size: 1.6;
+}
+.player:fullscreen, .player.is-fs { max-height: none; border-radius: 0; aspect-ratio: auto; width: 100vw; height: 100vh; }
+.player.theatre { max-height: calc(100dvh - 120px); }
+.player[data-controls="hidden"] { cursor: none; }
+
+/* Video.js element fills the stage; hide its built-in chrome. */
+.player .video-js { position: absolute; inset: 0; width: 100% !important; height: 100% !important; background: #000; }
+.player .video-js .vjs-control-bar,
+.player .video-js .vjs-big-play-button,
+.player .video-js .vjs-loading-spinner,
+.player .video-js .vjs-error-display,
+.player .video-js .vjs-modal-dialog,
+.player .video-js .vjs-poster,
+.player .video-js .vjs-text-track-settings { display: none !important; }
+.player .video-js video { object-fit: contain; }
+.player .vjs-text-track-display { bottom: 5em !important; transition: bottom var(--t-med) var(--ease); pointer-events: none; }
+.player[data-controls="hidden"] .vjs-text-track-display { bottom: 1.5em !important; }
+.player .vjs-text-track-cue > div {
+  font-family: var(--font) !important;
+  font-weight: 600;
+  background: rgba(0,0,0,.62) !important;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: calc(var(--sub-size) * 1em) !important;
+  line-height: 1.35;
+}
+
+/* ---------- Overlay ---------- */
+.player-overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.player-overlay > * { pointer-events: auto; }
+
+/* Shade gradients so controls read over bright scenes */
+.player-overlay::before, .player-overlay::after {
+  content: ""; position: absolute; left: 0; right: 0; pointer-events: none;
+  transition: opacity var(--t-med) var(--ease);
+}
+.player-overlay::before { top: 0; height: 130px; background: linear-gradient(rgba(0,0,0,.6), transparent); }
+.player-overlay::after { bottom: 0; height: 180px; background: linear-gradient(transparent, rgba(0,0,0,.7)); }
+.player[data-controls="hidden"] .player-overlay::before,
+.player[data-controls="hidden"] .player-overlay::after { opacity: 0; }
+
+.player-top {
+  position: absolute; top: 14px; left: 16px; right: 16px; z-index: 3;
+  display: flex; align-items: flex-start; gap: 12px;
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
+}
+.player-top .t-title { min-width: 0; }
+.player-top .t-title h3 { font-size: 1.15rem; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.player-top .t-title .t-sub { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.player-top .t-right { margin-left: auto; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+.player[data-controls="hidden"] .player-top { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+
+/* Centre: big play / spinner / countdown */
+.player-center {
+  position: absolute; inset: 0; display: grid; place-items: center; z-index: 1;
+  pointer-events: none;
+}
+.player-center > * { pointer-events: auto; }
+.player-center .fab.lg { transition: transform var(--t-med) var(--ease), opacity var(--t-med); }
+.player:not([data-state="paused"]):not([data-state="ready"]) .player-center .big-play { opacity: 0; transform: scale(.8); pointer-events: none; }
+
+.buffering {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 22px 28px;
+  border-radius: var(--r-xl);
+  background: var(--glass);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-2);
+  text-align: center;
+  min-width: 220px;
+  animation: pop-in var(--t-med) var(--ease-out) both;
+}
+.buffering .b-title { font-weight: 700; color: var(--text-strong); }
+.buffering .b-meta { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.buffering .progress { width: 180px; }
+
+.countdown {
+  font-size: 8rem; font-weight: 900; color: #fff; line-height: 1;
+  text-shadow: 0 10px 40px rgba(59,158,255,.6);
+  animation: count-pop 1s var(--ease-out) both;
+}
+@keyframes count-pop { 0% { opacity: 0; transform: scale(1.6); } 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.85); } }
+
+/* ---------- Bottom controls ---------- */
+.controls {
+  position: absolute; left: 14px; right: 14px; bottom: 14px; z-index: 3;
+  padding: 10px 14px 10px;
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255,255,255,.05);
+  box-shadow: var(--shadow-2);
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
+}
+.player[data-controls="hidden"] .controls { opacity: 0; transform: translateY(12px); pointer-events: none; }
+
+.ctrl-row { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.ctrl-row .grow { flex: 1; }
+.cbtn {
+  width: 40px; height: 40px; border-radius: var(--r-md);
+  border: none; background: transparent; color: var(--text);
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative; padding: 0;
+  transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+}
+.cbtn svg { width: 22px; height: 22px; }
+.cbtn:hover { background: rgba(255,255,255,.08); }
+.cbtn:active { transform: scale(.92); }
+.cbtn.on { color: var(--accent); }
+.cbtn .cbtn-badge {
+  position: absolute; top: 4px; right: 2px; font-size: 0.56rem; font-weight: 800;
+  background: var(--accent); color: #fff; border-radius: 4px; padding: 0 3px; line-height: 1.3;
+}
+.cbtn[disabled] { opacity: .35; cursor: not-allowed; }
+.time { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.95rem; padding: 0 8px; white-space: nowrap; }
+.time span { color: var(--muted); font-weight: 500; }
+
+/* Volume slider */
+.volume { display: flex; align-items: center; }
+.volume input[type=range] { width: 0; opacity: 0; transition: width var(--t-med) var(--ease), opacity var(--t-med); }
+.volume:hover input[type=range], .volume:focus-within input[type=range] { width: 90px; opacity: 1; margin-right: 6px; }
+
+input[type=range].slider { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 4px; background: linear-gradient(to right, var(--accent) var(--fill, 50%), #4a4f58 var(--fill, 50%)); cursor: pointer; }
+input[type=range].slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: none; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+input[type=range].slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: none; }
+
+/* Seek bar — route-line style */
+.seek { position: relative; height: 22px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+.seek .track { position: relative; width: 100%; height: 5px; border-radius: 6px; background: rgba(255,255,255,.16); transition: height var(--t-fast) var(--ease); }
+.seek:hover .track, .seek.dragging .track { height: 8px; }
+.seek .buffered, .seek .downloaded, .seek .played { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; }
+.seek .downloaded { background: rgba(76,175,80,.35); }   /* torrent pieces we have */
+.seek .buffered { background: rgba(255,255,255,.32); }
+.seek .played { background: var(--accent); box-shadow: 0 0 12px rgba(59,158,255,.55); }
+.seek .knob {
+  position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 0 4px rgba(59,158,255,.35), 0 2px 6px rgba(0,0,0,.5);
+  transform: scale(0); transition: transform var(--t-fast) var(--ease);
+}
+.seek:hover .knob, .seek.dragging .knob { transform: scale(1); }
+.seek .marker { position: absolute; top: -3px; bottom: -3px; width: 3px; border-radius: 2px; background: var(--warn); }
+
+.seek-preview {
+  position: absolute; bottom: 30px; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  pointer-events: none;
+  opacity: 0; transition: opacity var(--t-fast);
+}
+.seek:hover .seek-preview, .seek.dragging .seek-preview { opacity: 1; }
+.seek-preview .thumb {
+  width: 176px; aspect-ratio: 16/9; border-radius: var(--r-md); overflow: hidden;
+  background: #111 center/cover no-repeat; border: 2px solid rgba(255,255,255,.85);
+  box-shadow: var(--shadow-2);
+  display: grid; place-items: center;
+}
+.seek-preview .thumb canvas, .seek-preview .thumb img { width: 100%; height: 100%; object-fit: cover; }
+.seek-preview .thumb.empty { display: none; }
+.seek-preview .ptime { background: rgba(0,0,0,.8); padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+
+/* Sync pill inside controls */
+.sync-pill { margin-right: 6px; }
+
+/* Floating reactions */
+.reaction-layer { position: absolute; inset: 0; pointer-events: none !important; z-index: 4; overflow: hidden; }
+.float-react {
+  position: absolute; bottom: 90px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  animation: float-up 3.2s var(--ease-out) forwards;
+}
+.float-react .e { font-size: 2.6rem; filter: drop-shadow(0 6px 14px rgba(0,0,0,.5)); }
+.float-react .who { font-size: 0.7rem; font-weight: 700; padding: 1px 8px; border-radius: var(--r-pill); background: rgba(0,0,0,.6); color: #fff; }
+@keyframes float-up {
+  0% { opacity: 0; transform: translateY(20px) scale(.6); }
+  12% { opacity: 1; transform: translateY(0) scale(1.1); }
+  20% { transform: translateY(-20px) scale(1); }
+  100% { opacity: 0; transform: translateY(-340px) translateX(var(--drift, 0px)); }
+}
+
+/* Error state */
+.player-error {
+  max-width: 420px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;
+  padding: 24px; border-radius: var(--r-xl); background: var(--glass-strong); backdrop-filter: blur(14px);
+}
+.player-error .icon { width: 56px; height: 56px; border-radius: 50%; background: var(--danger-soft); color: var(--danger); display: grid; place-items: center; }
+.player-error .icon svg { width: 28px; height: 28px; }
+
+@media (max-width: 960px) {
+  .player { border-radius: var(--r-lg); max-height: none; }
+  .controls { left: 8px; right: 8px; bottom: 8px; padding: 6px 8px; }
+  .cbtn { width: 36px; height: 36px; }
+  .cbtn.hide-sm, .volume { display: none; }
+  .time { font-size: 0.82rem; padding: 0 4px; }
+  .player-top .t-right { display: none; }
+  .seek-preview .thumb { width: 128px; }
+  .countdown { font-size: 5rem; }
+}

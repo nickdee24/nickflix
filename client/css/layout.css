@@ -1,0 +1,127 @@
+/* ==========================================================================
+   App shell: [sidebar] [main] [rail]
+   ========================================================================== */
+.app {
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  gap: var(--gutter);
+  padding: var(--gutter);
+}
+.app[data-rail="on"] { grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--rail-w); }
+
+/* ---------- Left sidebar: Truck Dash tile buttons, stacked ---------- */
+.sidebar {
+  background: var(--panel);
+  border-radius: var(--r-xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 10px;
+  gap: 10px;
+  min-height: 0;
+}
+.sidebar .brand {
+  width: 52px; height: 52px;
+  display: grid; place-items: center;
+  margin-bottom: 8px;
+  border-radius: var(--r-lg);
+  color: var(--accent);
+}
+.sidebar .brand svg { width: 38px; height: 38px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.sidebar .spacer { flex: 1; }
+.sidebar .server-dot {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  font-size: 0.68rem; color: var(--muted); text-align: center;
+}
+
+.nav-tile {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 72px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  font-size: 0.72rem; font-weight: 600;
+  text-decoration: none !important;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast), transform var(--t-fast) var(--ease), color var(--t-fast);
+  position: relative;
+}
+.nav-tile svg { width: 22px; height: 22px; }
+.nav-tile:hover { background: var(--raised); border-color: #444a54; }
+.nav-tile:active { transform: scale(0.96); }
+.nav-tile.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(59,158,255,.28); }
+.nav-tile .badge-dot {
+  position: absolute; top: 8px; right: 10px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 0 3px rgba(76,175,80,.25);
+}
+
+/* ---------- Main column ---------- */
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.topbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  min-height: var(--topbar-h);
+  padding: 0 4px 12px;
+}
+.topbar .title { display: flex; align-items: center; gap: 10px; font-size: 1.35rem; font-weight: 700; color: var(--text-strong); min-width: 0; }
+.topbar .title svg { width: 28px; height: 28px; color: var(--accent); flex-shrink: 0; }
+.topbar .title small { font-weight: 600; color: var(--muted); font-size: 1rem; }
+.topbar .actions { margin-left: auto; display: flex; gap: 8px; }
+
+.view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: var(--r-xl);
+  scroll-behavior: smooth;
+}
+.view > .page { animation: page-in var(--t-slow) var(--ease-out) both; }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.page { display: flex; flex-direction: column; gap: var(--gutter); padding-bottom: 8px; }
+
+/* ---------- Right rail (rooms) ---------- */
+.rail {
+  min-height: 0;
+  display: flex; flex-direction: column; gap: var(--gutter);
+}
+.app[data-rail="off"] .rail { display: none; }
+
+/* ---------- Mobile bottom nav ---------- */
+.bottomnav { display: none; }
+
+@media (max-width: 1180px) {
+  :root { --rail-w: 320px; }
+}
+
+@media (max-width: 960px) {
+  body { overflow: auto; }
+  .app, .app[data-rail="on"] {
+    display: flex; flex-direction: column;
+    height: auto; min-height: 100dvh;
+    padding: 12px 12px 92px;
+    gap: 12px;
+  }
+  .sidebar { display: none; }
+  .view { overflow: visible; }
+  .rail { order: 3; }
+  .topbar { padding-bottom: 4px; }
+  .topbar .title { font-size: 1.15rem; }
+  .bottomnav {
+    display: flex; justify-content: space-around; gap: 6px;
+    position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 50;
+    padding: 8px;
+    background: var(--glass-strong);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-2);
+  }
+  .bottomnav .nav-tile { aspect-ratio: auto; height: 56px; flex: 1; font-size: 0.68rem; }
+}

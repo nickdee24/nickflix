@@ -1,0 +1,19 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: nickflix
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Free instances have little CPU: allow one ffmpeg conversion at a time.
+      - key: MAX_TRANSCODES
+        value: "1"
+      - key: TRANSCODE_PRESET
+        value: ultrafast
+      - key: MAX_TORRENTS
+        value: "4"
