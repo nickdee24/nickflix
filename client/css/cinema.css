@@ -11,9 +11,9 @@
 .cinema {
   --lights-dur: 1.6s; --lights-delay: 0s;
   --zoom-dur: 1.6s; --zoom-delay: 0s;
-  --wall-in: 21%;          /* where the side walls meet the screen */
-  --screen-top: 10%;
-  --screen-bottom: 68%;
+  --wall-in: 23%;          /* where the side walls meet the screen */
+  --screen-top: 12%;
+  --screen-bottom: 66%;
   position: relative;
   width: 100%;
   max-width: calc((100dvh - 128px) * 16 / 9);
@@ -27,75 +27,111 @@
 }
 .cinema.no-anim, .cinema.no-anim * { transition: none !important; }
 
-/* ---------- the room ---------- */
-.cin-room { position: absolute; inset: 0; z-index: 0; }
+/* ---------- the room ----------
+   Modelled on a modern auditorium: black ceiling with recessed downlights and
+   lines running to the screen, deep red side walls washed by a row of spot
+   lights along the top, speakers on the walls, and rows of dark seats. */
+.cin-room { position: absolute; inset: 0; z-index: 0; background: #030405; }
 
 .cin-ceiling {
-  position: absolute; inset: 0 0 auto 0; height: 40%;
-  background:
-    radial-gradient(60% 120% at 50% 0%, rgba(255, 196, 140, .10), transparent 70%),
-    linear-gradient(#0f0708, #160a0b 60%, transparent);
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, #07080a 0%, #0b0d10 70%, #101317 100%);
   clip-path: polygon(0 0, 100% 0, calc(100% - var(--wall-in)) var(--screen-top), var(--wall-in) var(--screen-top));
 }
+.cin-ceiling svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cin-ceiling svg line { stroke: rgba(150, 175, 205, .30); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.downlight {
+  position: absolute; width: calc(var(--s) * .55%); aspect-ratio: 1; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #ffffff 0 35%, rgba(255, 255, 255, .35) 55%, transparent 72%);
+  box-shadow: 0 0 calc(var(--s) * 6px) calc(var(--s) * 1.5px) rgba(255, 250, 240, .18);
+  transition: opacity var(--lights-dur) ease var(--lights-delay);
+}
+
 /* Back wall around the screen */
-.cin-back { position: absolute; left: var(--wall-in); right: var(--wall-in); top: var(--screen-top); bottom: calc(100% - var(--screen-bottom) - 4%); background: #0b0506; }
+.cin-back { position: absolute; left: var(--wall-in); right: var(--wall-in); top: var(--screen-top); bottom: calc(100% - var(--screen-bottom) - 6%); background: linear-gradient(#0a0b0d, #050506); }
 
 .cin-wall {
   position: absolute; inset: 0;
   background:
-    repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 26px),
-    linear-gradient(180deg, #3a1015 0%, #2a0b0f 45%, #14060a 100%);
+    linear-gradient(180deg, transparent 0 74%, rgba(0, 0, 0, .55) 80%, rgba(0, 0, 0, .85) 100%),
+    linear-gradient(90deg, #6e0710 0%, #5e060e 45%, #3e040a 100%);
 }
-.cin-wall.left { clip-path: polygon(0 0, var(--wall-in) var(--screen-top), var(--wall-in) calc(var(--screen-bottom) + 4%), 0 100%); }
-.cin-wall.right { clip-path: polygon(100% 0, calc(100% - var(--wall-in)) var(--screen-top), calc(100% - var(--wall-in)) calc(var(--screen-bottom) + 4%), 100% 100%); }
-.cin-wall.right { background:
-    repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 26px),
-    linear-gradient(180deg, #34101a 0%, #260a10 45%, #12050a 100%); }
-
-/* Wall lights: a warm lamp with a wash of light going up the wall */
-.sconce {
-  position: absolute; width: calc(var(--s) * 1.1%); aspect-ratio: 1 / 1.6;
-  transform: translate(-50%, -50%);
-  border-radius: 40% 40% 50% 50%;
-  background: radial-gradient(circle at 50% 40%, #fff3d6, #ffb764 55%, #b8601f);
-  box-shadow: 0 0 calc(var(--s) * 3px) calc(var(--s) * 1px) rgba(255, 176, 92, .75);
-  opacity: 1;
-  transition: opacity var(--lights-dur) ease var(--lights-delay), box-shadow var(--lights-dur) ease var(--lights-delay);
-}
-.sconce::after {
-  content: ""; position: absolute; left: 50%; bottom: 60%;
-  width: 520%; height: 900%; transform: translateX(-50%);
-  background: radial-gradient(50% 100% at 50% 100%, rgba(255, 186, 110, .38), rgba(255, 160, 80, .12) 45%, transparent 75%);
-  pointer-events: none;
+.cin-wall.left { clip-path: polygon(0 0, var(--wall-in) var(--screen-top), var(--wall-in) calc(var(--screen-bottom) + 6%), 0 82%); }
+.cin-wall.right { clip-path: polygon(100% 0, calc(100% - var(--wall-in)) var(--screen-top), calc(100% - var(--wall-in)) calc(var(--screen-bottom) + 6%), 100% 82%);
+  background:
+    linear-gradient(180deg, transparent 0 74%, rgba(0, 0, 0, .55) 80%, rgba(0, 0, 0, .85) 100%),
+    linear-gradient(270deg, #6e0710 0%, #5e060e 45%, #3e040a 100%); }
+/* Walls fall into shadow when the lights go down (on top of the room darkness) */
+.cin-wall::after {
+  content: ""; position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none;
   transition: opacity var(--lights-dur) ease var(--lights-delay);
 }
-.sconce::before { /* small downward pool */
-  content: ""; position: absolute; left: 50%; top: 70%; width: 300%; height: 300%; transform: translateX(-50%);
-  background: radial-gradient(50% 50% at 50% 0%, rgba(255, 186, 110, .22), transparent 70%);
+
+/* Spot lights along the top of each wall, each throwing a bright red wash down the wall */
+.sconce {
+  position: absolute; width: calc(var(--s) * .55%); aspect-ratio: 1; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #fff6ea 0 30%, rgba(255, 220, 200, .5) 55%, transparent 75%);
+  opacity: 1;
+  transition: opacity var(--lights-dur) ease var(--lights-delay);
+}
+.sconce::after {
+  content: ""; position: absolute; left: 50%; top: 40%;
+  width: 640%; height: 3000%; transform: translateX(-50%);
+  background:
+    radial-gradient(34% 22% at 50% 2%, rgba(255, 150, 140, .55), transparent 70%),
+    radial-gradient(50% 50% at 50% 0%, rgba(255, 40, 50, .70), rgba(220, 20, 32, .34) 45%, transparent 78%);
+  -webkit-mask-image: linear-gradient(#000 55%, transparent 92%);
+  mask-image: linear-gradient(#000 55%, transparent 92%);
+  pointer-events: none;
+}
+
+/* Wall speakers */
+.speaker {
+  position: absolute; width: calc(var(--s) * 1.5%); aspect-ratio: 1 / 1.25;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(160deg, #1d1d20, #08080a);
+  border-radius: 2px;
+  box-shadow: calc(var(--s) * 1.5px) calc(var(--s) * 2px) calc(var(--s) * 3px) rgba(0, 0, 0, .55);
 }
 
 /* Floor and the rows of seats in front of us */
 .cin-floor {
-  position: absolute; inset: auto 0 0 0; height: 40%;
-  background: linear-gradient(180deg, #120709, #070304);
+  position: absolute; inset: auto 0 0 0; height: calc(100% - var(--screen-bottom) - 6%);
+  background: linear-gradient(180deg, #08090b, #030304);
   clip-path: polygon(var(--wall-in) 0, calc(100% - var(--wall-in)) 0, 100% 100%, 0 100%);
 }
-.cin-seats { position: absolute; inset: auto 0 0 0; height: 36%; transition: transform var(--zoom-dur) cubic-bezier(.6, 0, .2, 1) var(--zoom-delay), opacity var(--zoom-dur) ease var(--zoom-delay); }
-.seat-row { position: absolute; left: 50%; display: flex; transform: translateX(-50%); }
-.seat-row span {
-  flex: none; border-radius: 42% 42% 12% 12%;
-  background: linear-gradient(180deg, #5a1820 0%, #3a0e14 35%, #1a0609 100%);
-  box-shadow: inset 0 2px 0 rgba(255, 190, 170, .14), 0 4px 10px rgba(0, 0, 0, .6);
+.cin-floor::before { /* low step lights along the aisles */
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(40% 10% at 50% 0%, rgba(120, 170, 220, .08), transparent 80%);
 }
-.seat-row.r1 { bottom: 64%; gap: .5%; width: 62%; } .seat-row.r1 span { width: 6.1%; aspect-ratio: 1 / .9; }
-.seat-row.r2 { bottom: 34%; gap: .6%; width: 80%; } .seat-row.r2 span { width: 7.2%; aspect-ratio: 1 / .9; }
-.seat-row.r3 { bottom: -6%; gap: .8%; width: 104%; } .seat-row.r3 span { width: 9.2%; aspect-ratio: 1 / .95; }
-.seat-row span:nth-child(odd) { filter: brightness(.92); }
+.cin-seats { position: absolute; inset: auto 0 0 0; height: 40%; transition: transform var(--zoom-dur) cubic-bezier(.6, 0, .2, 1) var(--zoom-delay), opacity var(--zoom-dur) ease var(--zoom-delay); }
+.seat-row { position: absolute; left: 50%; display: flex; justify-content: center; transform: translateX(-50%); }
+.seat-row span {
+  flex: none; position: relative;
+  border-radius: 28% 28% 10% 10% / 34% 34% 10% 10%;
+  background:
+    linear-gradient(180deg, rgba(160, 200, 205, .16) 0 4%, transparent 14%),
+    linear-gradient(180deg, #2c3438 0%, #1c2225 40%, #0c0f11 100%);
+  box-shadow: inset 0 1px 0 rgba(190, 230, 235, .12), inset 2px 0 0 rgba(0, 0, 0, .35), inset -2px 0 0 rgba(0, 0, 0, .35), 0 6px 10px rgba(0, 0, 0, .7);
+}
+.seat-row span::after { /* headrest seam */
+  content: ""; position: absolute; left: 12%; right: 12%; top: 30%; height: 2px; border-radius: 2px; background: rgba(0, 0, 0, .35);
+}
+.seat-row.r1 { bottom: 86%; gap: .25%; width: 50%; }  .seat-row.r1 span { width: 2.6%; aspect-ratio: 1 / .8; }
+.seat-row.r2 { bottom: 78%; gap: .3%;  width: 56%; }  .seat-row.r2 span { width: 3%;   aspect-ratio: 1 / .82; }
+.seat-row.r3 { bottom: 68%; gap: .35%; width: 63%; }  .seat-row.r3 span { width: 3.6%; aspect-ratio: 1 / .84; }
+.seat-row.r4 { bottom: 56%; gap: .45%; width: 72%; }  .seat-row.r4 span { width: 4.4%; aspect-ratio: 1 / .86; }
+.seat-row.r5 { bottom: 41%; gap: .55%; width: 84%; }  .seat-row.r5 span { width: 5.6%; aspect-ratio: 1 / .88; }
+.seat-row.r6 { bottom: 21%; gap: .7%;  width: 100%; } .seat-row.r6 span { width: 7.4%; aspect-ratio: 1 / .9; }
+.seat-row.r7 { bottom: -9%; gap: .9%;  width: 118%; } .seat-row.r7 span { width: 10%;  aspect-ratio: 1 / .92; }
+.seat-row span:nth-child(odd) { filter: brightness(.9); }
 
 /* Light from the screen falling on the room */
 .cin-spill {
   position: absolute; left: var(--wall-in); right: var(--wall-in); top: var(--screen-bottom); height: 36%;
-  background: radial-gradient(60% 70% at 50% 0%, rgba(200, 210, 255, .07), transparent 70%);
+  background: radial-gradient(60% 70% at 50% 0%, rgba(200, 210, 255, .06), transparent 70%);
   pointer-events: none;
 }
 
@@ -110,7 +146,7 @@
   position: absolute; inset: 0; z-index: 2;
   transform-origin: 50% 50%;
   /* Sits between the walls at the far end of the room */
-  transform: translateY(-11%) scale(.58);
+  transform: translateY(-11%) scale(.54);
   transition: transform var(--zoom-dur) cubic-bezier(.6, 0, .2, 1) var(--zoom-delay);
   will-change: transform;
 }
@@ -126,14 +162,18 @@
 /* ---------- scenes ---------- */
 .cinema[data-scene="playing"] .cin-screen { transform: none; }
 .cinema[data-scene="playing"] .cin-dark { opacity: 1; }
-.cinema[data-scene="playing"] .sconce { opacity: 0; box-shadow: none; }
+.cinema[data-scene="playing"] .sconce,
+.cinema[data-scene="playing"] .downlight { opacity: 0; }
+.cinema[data-scene="playing"] .cin-wall::after { opacity: .85; }
 .cinema[data-scene="playing"] .cin-seats { transform: translateY(40%); opacity: 0; }
 .cinema[data-scene="playing"] .cin-screen .player,
 .cinema[data-scene="playing"] .cin-screen .stage { border-radius: var(--r-2xl); box-shadow: none; }
 
 /* Intro step 1: lights are going down, the screen hasn't moved yet */
 .cinema[data-scene="dimming"] .cin-dark { opacity: .82; }
-.cinema[data-scene="dimming"] .sconce { opacity: 0; box-shadow: none; }
+.cinema[data-scene="dimming"] .sconce,
+.cinema[data-scene="dimming"] .downlight { opacity: 0; }
+.cinema[data-scene="dimming"] .cin-wall::after { opacity: .7; }
 
 .cinema[data-scene="paused"] .cin-screen .player .video-js { filter: brightness(.42) saturate(.8); }
 

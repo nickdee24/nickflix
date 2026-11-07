@@ -736,20 +736,42 @@ export function screenPage (params, shell) {
 
 /** The auditorium around the screen: walls with lights, seats, and the darkness. */
 function buildCinema (screenEl) {
-  // Wall lights climbing towards the screen: [x%, y%, size] for the left wall (mirrored on the right).
-  const LAMPS = [[4, 34, 2.4], [9.5, 31, 1.9], [14, 28.5, 1.55], [17.8, 26.5, 1.25]]
-  const lamps = (side) => LAMPS.map(([x, y, sz]) =>
-    h('span.sconce', { style: { left: side === 'left' ? `${x}%` : `${100 - x}%`, top: `${y}%`, '--s': sz } }))
+  // Geometry matches cinema.css: walls meet the screen at x=23%, y=12%…66%.
+  const WALL = 23
+  const mirror = (side, x) => (side === 'left' ? `${x}%` : `${100 - x}%`)
+  // Spot lights along the top of each wall, spaced closer as they recede.
+  const LIGHTS = Array.from({ length: 10 }, (_, i) => {
+    const x = 1.6 + (WALL - 2.4) * (1 - Math.pow(0.78, i + 0.6))
+    const depth = x / WALL
+    return [x, (x * 12) / WALL + 4.2 * (1 - depth * 0.7), 2.3 - depth * 1.6]
+  })
+  const SPEAKERS = [[5.5, 38, 2.1], [12, 39.5, 1.55], [16.8, 40.5, 1.2], [20.2, 41.2, 0.95]]
+  const wallBits = (side) => [
+    ...LIGHTS.map(([x, y, sz]) => h('span.sconce', { style: { left: mirror(side, x), top: `${y}%`, '--s': sz } })),
+    ...SPEAKERS.map(([x, y, sz]) => h('span.speaker', { style: { left: mirror(side, x), top: `${y}%`, '--s': sz } }))
+  ]
+  const DOWNLIGHTS = [[28, 2.5, 1.6], [50, 3, 1.6], [72, 2.5, 1.6], [37, 7, 1.15], [63, 7, 1.15], [50, 9.6, 0.9], [43, 10.6, 0.75], [57, 10.6, 0.75]]
+  const NS = 'http://www.w3.org/2000/svg'
+  const lines = document.createElementNS(NS, 'svg')
+  lines.setAttribute('viewBox', '0 0 100 100')
+  lines.setAttribute('preserveAspectRatio', 'none')
+  for (let k = 0; k <= 8; k++) {
+    const x0 = (k / 8) * 100
+    const l = document.createElementNS(NS, 'line')
+    l.setAttribute('x1', x0); l.setAttribute('y1', 0)
+    l.setAttribute('x2', WALL + (x0 / 100) * (100 - 2 * WALL)); l.setAttribute('y2', 12)
+    lines.append(l)
+  }
   const row = (cls, n) => h(`div.seat-row.${cls}`, Array.from({ length: n }, () => h('span')))
   const el = h('div.cinema.no-anim', { dataset: { scene: 'lobby' } },
     h('div.cin-room', { 'aria-hidden': 'true' },
-      h('div.cin-ceiling'),
+      h('div.cin-ceiling', lines, DOWNLIGHTS.map(([x, y, sz]) => h('span.downlight', { style: { left: `${x}%`, top: `${y}%`, '--s': sz } }))),
       h('div.cin-back'),
-      h('div.cin-wall.left', lamps('left')),
-      h('div.cin-wall.right', lamps('right')),
+      h('div.cin-wall.left', wallBits('left')),
+      h('div.cin-wall.right', wallBits('right')),
       h('div.cin-floor'),
       h('div.cin-spill'),
-      h('div.cin-seats', row('r1', 14), row('r2', 12), row('r3', 10))
+      h('div.cin-seats', row('r1', 18), row('r2', 18), row('r3', 17), row('r4', 16), row('r5', 15), row('r6', 13), row('r7', 11))
     ),
     h('div.cin-dark'),
     screenEl
