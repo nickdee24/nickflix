@@ -131,6 +131,7 @@ export function screenPage (params, shell) {
 
   function onPlayback (state) {
     S.lastPlayback = state
+    if (!state.playing) clearTitles()
     if (S.sync && S.playerReady) S.sync.apply(state)
     updateScene(true)
   }
@@ -422,6 +423,7 @@ export function screenPage (params, shell) {
     const scene = sceneFor()
     if (!scene) return
     clearTimeout(S.introTimer); clearTimeout(S.promptTimer); clearTimeout(S.introEndTimer)
+    clearTitles()
     cinema.el.classList.remove('intro')
     if (scene !== 'playing') closePrompt()
     if (scene === cinema.el.dataset.scene) return
@@ -439,9 +441,43 @@ export function screenPage (params, shell) {
     cinema.el.classList.add('intro')
     S.introEndTimer = setTimeout(() => cinema.el.classList.remove('intro'), wait)
     S.introTimer = setTimeout(() => cinema.set('playing', { lights: 0.6, zoom }, true), lights * 1000)
+    // First play: after the zoom, the fullscreen prompt, then the opening
+    // titles ("NickFlix presents", then the movie's name) end as it starts.
+    const zoomed = (lights + zoom) * 1000
+    const titlesAt = first ? Math.max(zoomed, wait - TITLES_MS) : wait
     if (first && S.pv && !document.fullscreenElement) {
-      S.promptTimer = setTimeout(() => openPrompt(wait - (lights + zoom) * 1000), (lights + zoom) * 1000)
+      S.promptTimer = setTimeout(() => openPrompt(titlesAt - zoomed), zoomed)
     }
+    if (first && S.pv && wait - titlesAt >= 3000) {
+      S.titlesTimer = setTimeout(() => playTitles(wait - titlesAt), titlesAt)
+    }
+  }
+
+  // ---------------------------------------------------------------- opening titles
+  const TITLES_MS = 7000
+  function playTitles (ms) {
+    clearTitles()
+    closePrompt()
+    const pv = S.pv
+    const media = S.state?.media
+    if (!pv || !media) return
+    const m = /^(.*?)\s*\((\d{4})\)\s*$/.exec(media.title || '')
+    const name = m ? m[1] : (media.title || '')
+    const year = m ? m[2] : ''
+    // With less time (joined late), only the movie's name is shown.
+    const both = ms >= 5000
+    const half = both ? ms / 2 : 0
+    const card = h('div.title-card', { style: { '--presents': `${half}ms`, '--title': `${ms - half}ms`, '--title-delay': `${half}ms` } },
+      both ? h('div.tc-presents', h('img', { src: '/public/nickflix-logo.png', alt: 'NickFlix' }), h('span', 'presents')) : null,
+      h('div.tc-title', h('h1', name), year ? h('span', year) : null)
+    )
+    pv.el.append(card)
+    S.titles = card
+    S.titlesEnd = setTimeout(clearTitles, ms + 200)
+  }
+  function clearTitles () {
+    clearTimeout(S.titlesTimer); clearTimeout(S.titlesEnd)
+    S.titles?.remove(); S.titles = null
   }
 
   function openPrompt (ms) {
@@ -690,6 +726,7 @@ export function screenPage (params, shell) {
       d.dispose()
       clearTimeout(S.introTimer); clearTimeout(S.promptTimer)
       closePrompt()
+      clearTitles()
       setTheatre(false)
       S.sync?.destroy()
       S.pv?.destroy()
