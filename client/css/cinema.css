@@ -55,13 +55,13 @@
   position: absolute; inset: 0;
   background:
     linear-gradient(180deg, transparent 0 74%, rgba(0, 0, 0, .55) 80%, rgba(0, 0, 0, .85) 100%),
-    linear-gradient(90deg, #6e0710 0%, #5e060e 45%, #3e040a 100%);
+    linear-gradient(90deg, #2a0306 0%, #220205 45%, #140103 100%);
 }
 .cin-wall.left { clip-path: polygon(0 0, var(--wall-in) var(--screen-top), var(--wall-in) calc(var(--screen-bottom) + 6%), 0 82%); }
 .cin-wall.right { clip-path: polygon(100% 0, calc(100% - var(--wall-in)) var(--screen-top), calc(100% - var(--wall-in)) calc(var(--screen-bottom) + 6%), 100% 82%);
   background:
     linear-gradient(180deg, transparent 0 74%, rgba(0, 0, 0, .55) 80%, rgba(0, 0, 0, .85) 100%),
-    linear-gradient(270deg, #6e0710 0%, #5e060e 45%, #3e040a 100%); }
+    linear-gradient(270deg, #2a0306 0%, #220205 45%, #140103 100%); }
 /* Walls fall into shadow when the lights go down (on top of the room darkness) */
 .cin-wall::after {
   content: ""; position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none;
@@ -78,10 +78,10 @@
 }
 .sconce::after {
   content: ""; position: absolute; left: 50%; top: 40%;
-  width: 640%; height: 3000%; transform: translateX(-50%);
+  width: 900%; height: 2800%; transform: translateX(-50%);
   background:
-    radial-gradient(34% 22% at 50% 2%, rgba(255, 150, 140, .55), transparent 70%),
-    radial-gradient(50% 50% at 50% 0%, rgba(255, 40, 50, .70), rgba(220, 20, 32, .34) 45%, transparent 78%);
+    radial-gradient(18% 14% at 50% 3%, rgba(255, 80, 80, .9), rgba(225, 20, 32, .55) 55%, transparent 85%),
+    radial-gradient(40% 44% at 50% 0%, rgba(190, 10, 22, .5), rgba(120, 5, 14, .2) 55%, transparent 85%);
   -webkit-mask-image: linear-gradient(#000 55%, transparent 92%);
   mask-image: linear-gradient(#000 55%, transparent 92%);
   pointer-events: none;
