@@ -19,7 +19,7 @@ export const config = {
 
   /** Screen 1 */
   screenName: process.env.SCREEN_NAME || 'Screen 1',
-  memberGraceMs: int(process.env.MEMBER_GRACE_MS, 30_000),
+  memberGraceMs: int(process.env.MEMBER_GRACE_MS, 8_000),
   maxMembers: int(process.env.MAX_MEMBERS, 24),
   chatHistory: 120,
 

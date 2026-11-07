@@ -53,6 +53,7 @@ export class Screen {
         admin: false,
         sockets: new Set(),
         connected: true,
+        away: false,
         removeTimer: null,
         net: emptyNet(),
         waitingSince: 0,
@@ -67,10 +68,15 @@ export class Screen {
     m.removeTimer = null
     m.sockets.add(socketId)
     m.connected = true
+    m.away = false
     return m
   }
 
-  /** On disconnect: keep the member for a grace period so a refresh doesn't drop them. */
+  /**
+   * On disconnect (tab or browser closed): the member disappears from the list
+   * straight away, but is kept for a few seconds so a page refresh doesn't
+   * post "left" / "joined" or lose their place.
+   */
   detach (userId, socketId, onRemoved) {
     const m = this.members.get(userId)
     if (!m) return
@@ -89,6 +95,14 @@ export class Screen {
     if (!m) return
     clearTimeout(m.removeTimer)
     this.members.delete(userId)
+  }
+
+  /** The viewer switched to another tab or window (or came back). Returns true if it changed. */
+  setAway (userId, away) {
+    const m = this.members.get(userId)
+    if (!m || m.away === !!away) return false
+    m.away = !!away
+    return true
   }
 
   /** Per-second network/buffer report from a viewer. */
@@ -216,7 +230,7 @@ export class Screen {
 
   // ---------------------------------------------------------------- views
   memberView (m) {
-    return { id: m.id, name: m.name, color: m.color, admin: m.admin, connected: m.connected, joinedAt: m.joinedAt }
+    return { id: m.id, name: m.name, color: m.color, admin: m.admin, connected: m.connected, away: !!m.away, joinedAt: m.joinedAt }
   }
 
   snapshot (host) {

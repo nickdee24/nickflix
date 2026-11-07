@@ -6,6 +6,7 @@
  *   screen:join   { username, clientKey, hostKey? }
  *   screen:leave
  *   screen:report { key, loaded, ahead, bw, height, auto, drift, waiting }   once a second
+ *   screen:presence { away }           switched to another tab or came back
  *   screen:load   { id } | { name, size }      host key only: prepare a movie on the PC
  *   screen:library                               host key only: list the PC's movie folder
  *   screen:unload                                host key only
@@ -150,6 +151,11 @@ export function attachSockets (io, { screen, hostLink }) {
 
     socket.on('screen:report', (r = {}) => { if (userId && r && typeof r === 'object') screen.report(userId, r) })
 
+    // Switched to another tab / minimised (away) or came back.
+    socket.on('screen:presence', (p = {}) => {
+      if (userId && p && typeof p === 'object' && screen.setAway(userId, p.away)) broadcastState()
+    })
+
     // ---- host controls ----------------------------------------------------
     socket.on('screen:library', async (cb) => {
       if (!joined(cb, { admin: true })) return
@@ -268,7 +274,7 @@ export function attachSockets (io, { screen, hostLink }) {
       const m = me()
       if (!m) return
       screen.detach(m.id, socket.id, () => {
-        system(`${m.name} disconnected`)
+        system(`${m.name} left`)
         broadcastState()
       })
       broadcastState()

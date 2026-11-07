@@ -8,7 +8,7 @@
  *  right rail  : share link, who's watching (live buffer bars, quality,
  *                connection speed and sync accuracy), reactions, chat
  */
-import { h, Disposer } from '../lib/dom.js'
+import { h, Disposer, morphChildren } from '../lib/dom.js'
 import { icon } from '../lib/icons.js'
 import { bytes, clock, timeOfDay } from '../lib/format.js'
 import { identity, settings } from '../state/store.js'
@@ -74,6 +74,7 @@ export function screenPage (params, shell) {
       S.hostAdmin = res.hostAdmin
       if (res.library) S.library = res.library
       S.joined = true
+      sendPresence()
       if (firstTime) buildLayout()
       if (firstTime || res.state.media?.key !== S.mediaKey) S.mediaKey = undefined // (re)render the main column with our role
       onState(res.state)
@@ -94,6 +95,10 @@ export function screenPage (params, shell) {
   d.add(socket.listen('screen:state', (st) => { if (S.joined) onState(st) }))
   d.add(socket.listen('playback:state', onPlayback))
   d.add(socket.listen('screen:net', onNet))
+
+  // Another tab or minimised → shown as Away; closing the tab removes you (server side).
+  const sendPresence = () => { if (S.joined) socket.send('screen:presence', { away: document.hidden }) }
+  d.listen(document, 'visibilitychange', sendPresence)
   d.add(socket.listen('screen:library', (lib) => { S.library = lib; renderMain(false) }))
   d.add(socket.listen('host:status', (st) => { S.hostAdmin = st; if (!S.state?.media) renderMain(false) }))
   d.add(socket.listen('screen:preparing', (p) => { S.preparing = p; if (!S.state?.media || p) renderPreparing() }))
@@ -171,6 +176,7 @@ export function screenPage (params, shell) {
     libSlot.replaceChildren(...(S.admin && !st.media ? [libraryPanel()] : []))
     if (st.media) { if (remount) mountPlayer(st.media); return }
     S.sync?.destroy(); S.sync = null
+    setTheatre(false)
     S.pv?.destroy(); S.pv = null
     S.playerReady = false
     mainSlot.replaceChildren(S.preparing ? preparingView() : emptyScreen())
@@ -294,9 +300,32 @@ export function screenPage (params, shell) {
     })
   }
 
+  // ---------------------------------------------------------------- theatre mode
+  // The screen moves to the middle of the window and everything else goes
+  // almost black. Clicking anywhere outside the picture (or Esc) brings the
+  // lights back.
+  let theatreBackdrop = null
+  function setTheatre (on) {
+    on = !!on
+    if (!on && !theatreBackdrop) return
+    if (S.pv && S.pv.theatre !== on) { S.pv.theatre = on; S.pv.el.classList.toggle('theatre', on); S.pv.theatreBtn?.classList.toggle('on', on) }
+    cinema.el.classList.toggle('theatre', on)
+    document.documentElement.classList.toggle('theatre-on', on)
+    shell.setRail(on ? null : railRoot())
+    if (on) {
+      theatreBackdrop = h('div.theatre-backdrop', { title: 'Click to bring the lights back', onclick: () => setTheatre(false) })
+      document.body.append(theatreBackdrop)
+    } else {
+      theatreBackdrop?.remove()
+      theatreBackdrop = null
+    }
+  }
+  d.listen(document, 'keydown', (e) => { if (e.key === 'Escape' && theatreBackdrop && !document.fullscreenElement) setTheatre(false) })
+
   // ---------------------------------------------------------------- player
   function mountPlayer (m) {
     S.sync?.destroy(); S.sync = null
+    setTheatre(false)
     S.pv?.destroy(); S.pv = null
     S.playerReady = false
 
@@ -325,7 +354,7 @@ export function screenPage (params, shell) {
     sync.on('activity', (text) => toast(text, 'info', 1800))
     sync.on('scheduled', ({ wait, action }) => runIntro(wait, action === 'start'))
     pv.on('reaction-key', (i) => react(REACTIONS[i]))
-    pv.on('theatre', (on) => shell.setRail(on ? null : railRoot()))
+    pv.on('theatre', (on) => setTheatre(on))
     pv.on('autoplay-blocked', () => {
       pv.engine.muted(true)
       pv.engine.play()
@@ -503,11 +532,13 @@ export function screenPage (params, shell) {
     const st = S.state
     if (!rail.people || !st) return
     const holdIds = new Set(st.hold?.ids || [])
+    // People who closed the page drop off the list at once (the server keeps
+    // them a few seconds in case it was just a refresh).
     const present = st.members.filter((m) => m.connected)
-    const people = st.members.map((m) => {
+    const people = present.map((m) => {
       const n = S.net.get(m.id)
-      return h(`div.person.viewer${m.connected ? '' : '.offline'}`,
-        avatar({ name: m.name, color: m.color, status: !m.connected ? 'away' : n?.waiting ? 'buffering' : n?.loaded ? 'watching' : 'idle' }),
+      return h(`div.person.viewer${m.connected ? '' : '.offline'}`, { dataset: { key: m.id } },
+        avatar({ name: m.name, color: m.color, status: m.away ? 'away' : n?.waiting ? 'buffering' : n?.loaded ? 'watching' : 'idle' }),
         h('div.pinfo',
           h('div.pname', h('span.truncate', m.name), m.admin ? icon('crown', 'crown') : null, m.id === S.me ? h('span.you', 'you') : null),
           viewerStats(m, n, holdIds.has(m.id))
@@ -518,24 +549,24 @@ export function screenPage (params, shell) {
       )
     })
     const hold = st.hold && st.hold.ids.length
-      ? h('div.hold-banner', h('span.dot.warn.pulse'), `Paused for ${st.hold.ids.map((id) => st.members.find((m) => m.id === id)?.name).filter(Boolean).join(', ') || 'someone'} to buffer…`)
+      ? h('div.hold-banner', { dataset: { key: 'hold' } }, h('span.dot.warn.pulse'), `Paused for ${st.hold.ids.map((id) => st.members.find((m) => m.id === id)?.name).filter(Boolean).join(', ') || 'someone'} to buffer…`)
       : null
-    rail.people.replaceChildren(...[
-      h('div.panel-head', { style: { marginBottom: '6px' } },
+    // Patched in place (not rebuilt) because this runs every second.
+    morphChildren(rail.people, [
+      h('div.panel-head', { dataset: { key: 'head' }, style: { marginBottom: '6px' } },
         h('div.eyebrow', `Watching · ${present.length}`),
         h('div.right', h('div.avatar-stack', present.slice(0, 5).map((m) => avatar({ name: m.name, color: m.color, size: 'sm' }))))
       ),
       hold,
-      h('div.people', people),
-      st.media ? null : h('p.muted', { style: { fontSize: '0.8rem', margin: '10px 4px 0' } }, 'Buffer bars, quality and sync show here once a movie is on.')
+      h('div.people', { dataset: { key: 'people' } }, people),
+      st.media ? null : h('p.muted', { dataset: { key: 'hint' }, style: { fontSize: '0.8rem', margin: '10px 4px 0' } }, 'Buffer bars, quality and sync show here once a movie is on.')
     ].filter(Boolean))
   }
 
   /** "████░░  28s · 1080p · 24 Mbps · ±38ms" */
   function viewerStats (m, n, held) {
-    if (!m.connected) return h('span.pstatus', 'Away')
-    if (!S.state.media) return h('span.pstatus', 'In the lobby')
-    if (!n || !n.loaded) return h('div.vstats', bufferBar(0, 'loading'), h('span.pstatus', h('span.dot.info.pulse'), 'Loading…'))
+    if (!S.state.media) return h('span.pstatus', m.away ? 'Away' : 'In the lobby')
+    if (!n || !n.loaded) return h('div.vstats', bufferBar(0, 'loading'), h('span.pstatus', m.away ? h('b.away-tag', 'Away · ') : null, h('span.dot.info.pulse'), 'Loading…'))
     const pct = Math.min(1, n.ahead / BUFFER_GOAL)
     const state = n.waiting ? 'stalled' : held ? 'low' : pct < 0.2 ? 'low' : 'ok'
     const parts = [`${Math.floor(n.ahead)}s buffered`]
@@ -545,6 +576,7 @@ export function screenPage (params, shell) {
     return h('div.vstats',
       bufferBar(pct, state),
       h(`span.pstatus${n.waiting ? '.buffering' : ''}`,
+        m.away ? h('b.away-tag', 'Away · ') : null,
         n.waiting ? h('span.dot.warn') : null,
         n.waiting ? 'Buffering… ' : null,
         parts.join(' · '),
@@ -658,6 +690,7 @@ export function screenPage (params, shell) {
       d.dispose()
       clearTimeout(S.introTimer); clearTimeout(S.promptTimer)
       closePrompt()
+      setTheatre(false)
       S.sync?.destroy()
       S.pv?.destroy()
     }
