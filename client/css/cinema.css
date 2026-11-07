@@ -190,3 +190,38 @@ html[data-motion="reduced"] .cin-screen, html[data-motion="reduced"] .cin-seats 
 /* The page's entry animation leaves a transform behind, which would pin the
    fixed-position cinema to the page instead of the window. */
 html.theatre-on .page { animation: none; transform: none; }
+
+/* ---------- opening titles ----------
+   "NICKFLIX presents", then the movie's name, over black, ending as the
+   movie starts. Durations come from JS (--presents, --title, --title-delay). */
+.title-card {
+  position: absolute; inset: 0; z-index: 45;
+  display: grid; place-items: center;
+  background: #000; color: #fff; text-align: center;
+  pointer-events: none;
+  animation: tc-out .5s ease calc(var(--title-delay) + var(--title) - .5s) both;
+}
+@keyframes tc-out { to { opacity: 0; } }
+.title-card > div { grid-area: 1 / 1; opacity: 0; }
+.tc-presents {
+  display: flex; flex-direction: column; align-items: center; gap: 1.2vmin;
+  animation: tc-fade var(--presents) ease both;
+}
+.tc-presents img { width: clamp(140px, 26%, 420px); height: auto; filter: drop-shadow(0 0 30px rgba(219, 32, 44, .35)); }
+.tc-presents span { font-size: clamp(.8rem, 1.6vw, 1.3rem); letter-spacing: .6em; text-transform: lowercase; color: #bdbdbd; padding-left: .6em; }
+.tc-title { padding: 0 6%; animation: tc-fade var(--title) ease var(--title-delay) both; }
+.tc-title h1 {
+  font-size: clamp(1.6rem, 6vw, 5rem); line-height: 1.05; font-weight: 800;
+  letter-spacing: .18em; text-transform: uppercase; color: #f4f1ea;
+  text-shadow: 0 0 40px rgba(255, 255, 255, .15);
+}
+.tc-title span { display: block; margin-top: 1.4vmin; color: #9a9a9a; letter-spacing: .5em; font-size: clamp(.75rem, 1.3vw, 1.05rem); padding-left: .5em; }
+@keyframes tc-fade {
+  0% { opacity: 0; transform: scale(.97); }
+  22% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.03); }
+}
+/* The 3-2-1 makes way for the titles */
+.cinema .player:has(.title-card) .countdown,
+.cinema .player:has(.title-card) .big-play { display: none; }
