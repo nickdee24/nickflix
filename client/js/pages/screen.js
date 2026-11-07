@@ -499,36 +499,106 @@ export function screenPage (params, shell) {
     renderPeople()
   }
 
+  // The viewer list refreshes every second (buffer stats), so it is patched in
+  // place rather than rebuilt: rebuilding restarted the pulse/loading
+  // animations and the buffer-bar transition, which made the list flicker.
   function renderPeople () {
     const st = S.state
     if (!rail.people || !st) return
+    let p = rail.people._people
+    if (!p) {
+      p = rail.people._people = {
+        count: h('div.eyebrow'),
+        stack: h('div.avatar-stack'),
+        hold: h('div', { style: { display: 'contents' } }),
+        list: h('div.people'),
+        hint: h('p.muted', { style: { fontSize: '0.8rem', margin: '10px 4px 0' } }, 'Buffer bars, quality and sync show here once a movie is on.'),
+        rows: new Map(),
+        stackSig: null,
+        holdSig: null
+      }
+      rail.people.replaceChildren(
+        h('div.panel-head', { style: { marginBottom: '6px' } }, p.count, h('div.right', p.stack)),
+        p.hold, p.list, p.hint
+      )
+    }
+
     const holdIds = new Set(st.hold?.ids || [])
     const present = st.members.filter((m) => m.connected)
-    const people = st.members.map((m) => {
+
+    p.count.textContent = `Watching · ${present.length}`
+    const stackSig = JSON.stringify(present.slice(0, 5).map((m) => [m.name, m.color]))
+    if (stackSig !== p.stackSig) {
+      p.stackSig = stackSig
+      p.stack.replaceChildren(...present.slice(0, 5).map((m) => avatar({ name: m.name, color: m.color, size: 'sm' })))
+    }
+
+    const holdText = st.hold && st.hold.ids.length
+      ? `Paused for ${st.hold.ids.map((id) => st.members.find((m) => m.id === id)?.name).filter(Boolean).join(', ') || 'someone'} to buffer…`
+      : ''
+    if (holdText !== p.holdSig) {
+      p.holdSig = holdText
+      p.hold.replaceChildren(...(holdText ? [h('div.hold-banner', h('span.dot.warn.pulse'), holdText)] : []))
+    }
+
+    const seen = new Set()
+    const order = st.members.map((m) => {
       const n = S.net.get(m.id)
-      return h(`div.person.viewer${m.connected ? '' : '.offline'}`,
-        avatar({ name: m.name, color: m.color, status: !m.connected ? 'away' : n?.waiting ? 'buffering' : n?.loaded ? 'watching' : 'idle' }),
-        h('div.pinfo',
-          h('div.pname', h('span.truncate', m.name), m.admin ? icon('crown', 'crown') : null, m.id === S.me ? h('span.you', 'you') : null),
-          viewerStats(m, n, holdIds.has(m.id))
-        ),
-        S.admin && m.id !== S.me && m.connected
-          ? h('button.icon-btn.sm', { title: `Remove ${m.name}`, 'aria-label': `Remove ${m.name}`, onclick: () => confirmKick(m) }, icon('kick'))
-          : null
-      )
+      const presence = !m.connected ? 'away' : n?.waiting ? 'buffering' : n?.loaded ? 'watching' : 'idle'
+      const sig = JSON.stringify([m.name, m.color, m.admin, m.connected, m.id === S.me, S.admin])
+      const stats = viewerStats(m, n, holdIds.has(m.id))
+      let row = p.rows.get(m.id)
+      if (row && row.sig === sig) {
+        row.stats = patchStats(row.stats, stats)
+        const dot = row.el.querySelector('.avatar .presence')
+        if (dot && !dot.classList.contains(presence)) dot.className = `presence ${presence}`
+      } else {
+        row = { sig, stats }
+        row.el = h(`div.person.viewer${m.connected ? '' : '.offline'}`,
+          avatar({ name: m.name, color: m.color, status: presence }),
+          h('div.pinfo',
+            h('div.pname', h('span.truncate', m.name), m.admin ? icon('crown', 'crown') : null, m.id === S.me ? h('span.you', 'you') : null),
+            stats
+          ),
+          S.admin && m.id !== S.me && m.connected
+            ? h('button.icon-btn.sm', { title: `Remove ${m.name}`, 'aria-label': `Remove ${m.name}`, onclick: () => confirmKick(m) }, icon('kick'))
+            : null
+        )
+        p.rows.get(m.id)?.el.replaceWith(row.el)
+        p.rows.set(m.id, row)
+      }
+      seen.add(m.id)
+      return row.el
     })
-    const hold = st.hold && st.hold.ids.length
-      ? h('div.hold-banner', h('span.dot.warn.pulse'), `Paused for ${st.hold.ids.map((id) => st.members.find((m) => m.id === id)?.name).filter(Boolean).join(', ') || 'someone'} to buffer…`)
-      : null
-    rail.people.replaceChildren(...[
-      h('div.panel-head', { style: { marginBottom: '6px' } },
-        h('div.eyebrow', `Watching · ${present.length}`),
-        h('div.right', h('div.avatar-stack', present.slice(0, 5).map((m) => avatar({ name: m.name, color: m.color, size: 'sm' }))))
-      ),
-      hold,
-      h('div.people', people),
-      st.media ? null : h('p.muted', { style: { fontSize: '0.8rem', margin: '10px 4px 0' } }, 'Buffer bars, quality and sync show here once a movie is on.')
-    ].filter(Boolean))
+    for (const id of [...p.rows.keys()]) if (!seen.has(id)) { p.rows.get(id).el.remove(); p.rows.delete(id) }
+    const cur = [...p.list.children]
+    if (cur.length !== order.length || order.some((el, i) => cur[i] !== el)) p.list.replaceChildren(...order)
+
+    p.hint.style.display = st.media ? 'none' : ''
+  }
+
+  /** Update a viewer's stats block in place, keeping running animations/transitions. */
+  function patchStats (oldEl, newEl) {
+    if (oldEl.className !== newEl.className || !oldEl.classList.contains('vstats')) {
+      if (oldEl.outerHTML === newEl.outerHTML) return oldEl
+      oldEl.replaceWith(newEl); return newEl
+    }
+    const ob = oldEl.querySelector('.progress'); const nb = newEl.querySelector('.progress')
+    if (!ob !== !nb) { oldEl.replaceWith(newEl); return newEl }
+    if (ob) {
+      if (ob.className !== nb.className) ob.className = nb.className
+      if (ob.title !== nb.title) ob.title = nb.title
+      const w = nb.firstChild.style.width
+      if (ob.firstChild.style.width !== w) ob.firstChild.style.width = w
+    }
+    const os = oldEl.querySelector('.pstatus'); const ns = newEl.querySelector('.pstatus')
+    if (os && ns && os.outerHTML !== ns.outerHTML) {
+      // Same shape (e.g. "12s buffered · 1080p…" → "13s buffered…"): swap the text only.
+      if (os.className === ns.className && !os.querySelector('.dot') && !ns.querySelector('.dot')) os.replaceChildren(...ns.childNodes)
+      else os.replaceWith(ns)
+    }
+    if (ns) (oldEl.querySelector('.pstatus') || ns).title = ns.textContent.trim()
+    return oldEl
   }
 
   /** "████░░  28s · 1080p · 24 Mbps · ±38ms" */
