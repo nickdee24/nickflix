@@ -68,3 +68,40 @@ export class Disposer {
   timeout (fn, ms) { const id = setTimeout(fn, ms); this.add(() => clearTimeout(id)); return id }
   dispose () { while (this.#fns.length) { try { this.#fns.pop()() } catch (e) { console.error(e) } } }
 }
+
+/**
+ * Patch `from` in place so it matches `to` (a freshly built tree), touching
+ * only what changed. Lists that refresh every second use this instead of
+ * replaceChildren so rows don't re-run entry animations, flicker or jump.
+ * Children with a `data-key` are matched by key; others by position.
+ * Event listeners on nodes that are kept stay as they were.
+ */
+export function morph (from, to) {
+  if (from.nodeType !== to.nodeType || from.nodeName !== to.nodeName) { from.replaceWith(to); return }
+  if (from.nodeType !== 1) { if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue; return }
+  for (const a of [...from.attributes]) if (!to.hasAttribute(a.name)) from.removeAttribute(a.name)
+  for (const a of [...to.attributes]) if (from.getAttribute(a.name) !== a.value) from.setAttribute(a.name, a.value)
+  morphChildren(from, [...to.childNodes])
+}
+
+export function morphChildren (parent, next) {
+  const keyed = new Map()
+  for (const c of parent.childNodes) if (c.nodeType === 1 && c.dataset?.key) keyed.set(c.dataset.key, c)
+  let cursor = parent.firstChild
+  for (const n of next) {
+    const key = n.nodeType === 1 ? n.dataset?.key : null
+    let match = null
+    if (key) match = keyed.get(key) || null
+    else if (cursor && !(cursor.nodeType === 1 && cursor.dataset?.key)) match = cursor
+    if (match) {
+      keyed.delete(key)
+      if (match !== cursor) parent.insertBefore(match, cursor)
+      const after = match.nextSibling
+      morph(match, n)
+      cursor = after
+    } else {
+      parent.insertBefore(n, cursor)
+    }
+  }
+  while (cursor) { const nx = cursor.nextSibling; cursor.remove(); cursor = nx }
+}

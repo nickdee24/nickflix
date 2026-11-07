@@ -165,3 +165,28 @@ html[data-motion="reduced"] .cin-screen, html[data-motion="reduced"] .cin-seats 
 /* During the intro the play button and the 3-2-1 make way for the prompt */
 .cinema.intro .big-play { opacity: 0; pointer-events: none; }
 .cinema .player:has(.fs-prompt) .countdown { display: none; }
+
+/* ---------- theatre mode ----------
+   The cinema moves to the middle of the window above a near-black backdrop
+   that covers the rest of the site. Clicking the backdrop turns it off. */
+.theatre-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(0, 0, 0, .965);
+  cursor: pointer;
+  animation: theatre-in .6s ease both;
+}
+@keyframes theatre-in { from { opacity: 0; } }
+.cinema.theatre {
+  position: fixed; z-index: 91;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(96vw, calc(92dvh * 16 / 9)); max-width: none;
+  margin: 0;
+  box-shadow: 0 0 120px rgba(0, 0, 0, .9);
+}
+.cinema.theatre .player.theatre { max-height: none; }
+@media (max-width: 960px) {
+  .cinema.theatre { width: 100vw; border-radius: 0; }
+}
+/* The page's entry animation leaves a transform behind, which would pin the
+   fixed-position cinema to the page instead of the window. */
+html.theatre-on .page { animation: none; transform: none; }

@@ -63,7 +63,7 @@
 .invite-row { display: flex; gap: 8px; margin-top: 12px; }
 .invite-row .input { height: 38px; font-size: 0.8rem; font-family: var(--font-mono); color: var(--muted); }
 
-.people { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; max-height: 32vh; overflow-y: auto; }
+.people { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; max-height: 32vh; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 .person {
   display: flex; align-items: center; gap: 12px;
   padding: 8px; border-radius: var(--r-md);
@@ -81,8 +81,11 @@
 .person.offline { opacity: .5; }
 .person.viewer { align-items: flex-start; }
 .vstats { display: flex; flex-direction: column; gap: 5px; margin-top: 5px; }
-.vstats .pstatus { flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+/* One line, fixed height: numbers change every second and must not reflow the list */
+.vstats .pstatus { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.vstats .pstatus .dot { display: inline-block; vertical-align: middle; margin-right: 5px; }
 .sync-ms { color: var(--text); }
+.away-tag { color: var(--text); font-weight: 600; }
 .progress.buf { width: 100%; }
 .progress.buf > i { transition: width .9s linear; }
 .progress.buf.ok > i { background: var(--ok); }
