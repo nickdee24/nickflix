@@ -136,7 +136,14 @@
 /* Volume slider */
 .volume { display: flex; align-items: center; }
 .volume input[type=range] { width: 0; opacity: 0; transition: width var(--t-med) var(--ease), opacity var(--t-med); }
-.volume:hover input[type=range], .volume:focus-within input[type=range] { width: 90px; opacity: 1; margin-right: 6px; }
+.volume:hover input[type=range], .volume:focus-within input[type=range] { width: 120px; opacity: 1; margin-right: 6px; }
+/* 0–200%: the right half of the slider is the boost, tinted brighter */
+.volume input[type=range].slider { background:
+  linear-gradient(to right, var(--accent) var(--fill, 50%), transparent var(--fill, 50%)),
+  linear-gradient(to right, #4a4f58 50%, #6b4a4e 50%); }
+.vol-pct { font-size: 0.74rem; color: var(--muted); width: 0; overflow: hidden; opacity: 0; transition: opacity var(--t-med), width var(--t-med); white-space: nowrap; }
+.volume:hover .vol-pct, .volume:focus-within .vol-pct, .vol-pct.boost { width: 3.4em; opacity: 1; margin-right: 6px; }
+.vol-pct.boost { color: #ffb3b8; font-weight: 700; }
 
 input[type=range].slider { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 4px; background: linear-gradient(to right, var(--accent) var(--fill, 50%), #4a4f58 var(--fill, 50%)); cursor: pointer; }
 input[type=range].slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: none; box-shadow: 0 1px 4px rgba(0,0,0,.5); }

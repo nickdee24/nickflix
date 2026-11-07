@@ -36,6 +36,7 @@ const DEFAULTS = {
   encoder: 'auto',
   /** Decode on the GPU as well (NVIDIA only). Turn off if a file shows green/garbled frames. */
   hwDecode: true,
+  normalizeAudio: true,
   /** Max simultaneous ffmpeg encodes. 0 = auto (6 on NVIDIA, 4 on other GPUs, 2 on CPU). */
   maxJobs: 0,
   /** Gigabytes of cache kept on disk before old movies are cleared. */

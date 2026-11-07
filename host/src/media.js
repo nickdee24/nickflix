@@ -13,12 +13,12 @@ export const SEGMENT_SECONDS = 4
  * buffering, and a fast one gets the best picture.
  */
 const LADDER = [
-  { name: '2160p', height: 2160, vbr: 16000, abr: 192 },
-  { name: '1440p', height: 1440, vbr: 10000, abr: 192 },
-  { name: '1080p', height: 1080, vbr: 6500, abr: 160 },
-  { name: '720p', height: 720, vbr: 3200, abr: 128 },
-  { name: '480p', height: 480, vbr: 1400, abr: 128 },
-  { name: '360p', height: 360, vbr: 750, abr: 96 }
+  { name: '2160p', height: 2160, vbr: 16000, abr: 256 },
+  { name: '1440p', height: 1440, vbr: 10000, abr: 256 },
+  { name: '1080p', height: 1080, vbr: 6500, abr: 256 },
+  { name: '720p', height: 720, vbr: 3200, abr: 192 },
+  { name: '480p', height: 480, vbr: 1400, abr: 160 },
+  { name: '360p', height: 360, vbr: 750, abr: 128 }
 ]
 
 export function hasBinary (bin) {
@@ -105,6 +105,33 @@ export function pickAudio (info) {
   return info.audio.find((a) => a.isDefault) || info.audio.find((a) => /^en/i.test(a.lang || '')) || info.audio[0]
 }
 
+/**
+ * Audio filter chain for browsers: always stereo, and loud enough.
+ *
+ * Any surround layout (5.1, 7.1, …) is folded to stereo with the centre
+ * channel at full level. ffmpeg's default downmix drops the centre (where
+ * almost all dialogue lives) to ~70% and averages everything, so films come
+ * out thin and very quiet. Mono is copied to both sides.
+ *
+ * With `normalize`, a gentle compressor lifts quiet speech and tames
+ * explosions (about +7 dB overall), then a limiter stops anything clipping.
+ * These are fixed, non-adaptive filters (unlike loudnorm), so the new encode
+ * a seek starts sounds exactly like the one it replaced.
+ */
+export function audioFilter (channels, normalize = true) {
+  const f = []
+  if (channels > 2) f.push('aresample=out_chlayout=stereo:center_mix_level=1:surround_mix_level=0.707:lfe_mix_level=0.5')
+  else if (channels === 1) f.push('pan=stereo|c0=c0|c1=c0')
+  if (normalize) {
+    f.push(
+      'acompressor=threshold=0.089:ratio=3:attack=15:release=300:knee=4:makeup=2.2',
+      'alimiter=limit=0.94:attack=5:release=60:level=disabled'
+    )
+  }
+  f.push('aresample=48000')
+  return f.join(',')
+}
+
 const TEXT_SUBS = new Set(['subrip', 'srt', 'ass', 'ssa', 'webvtt', 'mov_text', 'text'])
 export const isTextSub = (s) => TEXT_SUBS.has(s.codec)
 
@@ -115,9 +142,10 @@ export const isTextSub = (s) => TEXT_SUBS.has(s.codec)
  * what lets anyone seek anywhere instantly: the PC just starts a new encode
  * from that segment.
  */
-export function encodeArgs ({ input, info, rung, encoder, startSeg, outDir, tonemap, hwDecode = true }) {
+export function encodeArgs ({ input, info, rung, encoder, startSeg, outDir, tonemap, hwDecode = true, normalizeAudio = true }) {
   const start = startSeg * SEGMENT_SECONDS
   const audio = pickAudio(info)
+  const af = audio ? audioFilter(audio.channels || 2, normalizeAudio) : ''
   const vbr = rung.vbr
   const vf = [`scale=-2:${rung.outHeight}:flags=bicubic`]
   if (info.video?.hdr && tonemap) {
@@ -146,6 +174,7 @@ export function encodeArgs ({ input, info, rung, encoder, startSeg, outDir, tone
     ...enc,
     '-b:v', `${vbr}k`, '-maxrate', `${Math.round(vbr * 1.5)}k`, '-bufsize', `${vbr * 2}k`,
     '-force_key_frames', `expr:gte(t,n_forced*${SEGMENT_SECONDS})`,
+    ...(af ? ['-af', af] : []),
     ...(audio ? ['-c:a', 'aac', '-ac', '2', '-ar', '48000', '-b:a', `${rung.abr}k`] : []),
     '-output_ts_offset', String(start),
     '-muxdelay', '0',
