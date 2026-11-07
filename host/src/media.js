@@ -15,8 +15,8 @@ export const SEGMENT_SECONDS = 4
 const LADDER = [
   { name: '2160p', height: 2160, vbr: 16000, abr: 192 },
   { name: '1440p', height: 1440, vbr: 10000, abr: 192 },
-  { name: '1080p', height: 1080, vbr: 6500, abr: 160 },
-  { name: '720p', height: 720, vbr: 3200, abr: 128 },
+  { name: '1080p', height: 1080, vbr: 6500, abr: 192 },
+  { name: '720p', height: 720, vbr: 3200, abr: 160 },
   { name: '480p', height: 480, vbr: 1400, abr: 128 },
   { name: '360p', height: 360, vbr: 750, abr: 96 }
 ]
@@ -105,7 +105,23 @@ export function pickAudio (info) {
   return info.audio.find((a) => a.isDefault) || info.audio.find((a) => /^en/i.test(a.lang || '')) || info.audio[0]
 }
 
-const TEXT_SUBS = new Set(['subrip', 'srt', 'ass', 'ssa', 'webvtt', 'mov_text', 'text'])
+/**
+ * Audio for the browser: stereo that sounds right on laptop speakers and headphones.
+ *  - Surround (5.1/7.1) is folded down with the centre channel at full level, so
+ *    dialogue isn't buried under music and effects (a plain downmix drops it
+ *    to about 70% and the whole film ends up very quiet).
+ *  - loudnorm then brings everything to streaming loudness (-16 LUFS, like
+ *    YouTube/Netflix) and evens out whispers vs explosions a bit, without clipping.
+ */
+export function audioFilter (audio, normalize = true) {
+  const f = []
+  if ((audio?.channels || 2) > 2) f.push('aresample=out_chlayout=stereo:center_mix_level=1:surround_mix_level=0.707:lfe_mix_level=0.5')
+  if (normalize) f.push('loudnorm=I=-16:LRA=11:TP=-1.5')
+  f.push('aresample=48000')
+  return f.join(',')
+}
+
+const TEXT_SUBS =new Set(['subrip', 'srt', 'ass', 'ssa', 'webvtt', 'mov_text', 'text'])
 export const isTextSub = (s) => TEXT_SUBS.has(s.codec)
 
 /**
@@ -115,7 +131,7 @@ export const isTextSub = (s) => TEXT_SUBS.has(s.codec)
  * what lets anyone seek anywhere instantly: the PC just starts a new encode
  * from that segment.
  */
-export function encodeArgs ({ input, info, rung, encoder, startSeg, outDir, tonemap, hwDecode = true }) {
+export function encodeArgs ({ input, info, rung, encoder, startSeg, outDir, tonemap, hwDecode = true, normalize = true }) {
   const start = startSeg * SEGMENT_SECONDS
   const audio = pickAudio(info)
   const vbr = rung.vbr
@@ -146,7 +162,7 @@ export function encodeArgs ({ input, info, rung, encoder, startSeg, outDir, tone
     ...enc,
     '-b:v', `${vbr}k`, '-maxrate', `${Math.round(vbr * 1.5)}k`, '-bufsize', `${vbr * 2}k`,
     '-force_key_frames', `expr:gte(t,n_forced*${SEGMENT_SECONDS})`,
-    ...(audio ? ['-c:a', 'aac', '-ac', '2', '-ar', '48000', '-b:a', `${rung.abr}k`] : []),
+    ...(audio ? ['-af', audioFilter(audio, normalize), '-c:a', 'aac', '-ac', '2', '-ar', '48000', '-b:a', `${rung.abr}k`] : []),
     '-output_ts_offset', String(start),
     '-muxdelay', '0',
     '-f', 'hls',
