@@ -49,7 +49,7 @@ export class Streamer {
     const info = await probe(this.cfg.ffprobePath, entry.path)
     if (!info.video) throw new Error('That file has no video track.')
     const rungs = ladderFor(info)
-    const sig = crypto.createHash('sha1').update(`${entry.path}|${entry.size}|${entry.mtime}|${this.encoder}|${rungs.map((r) => r.name).join()}|v1`).digest('hex').slice(0, 10)
+    const sig = crypto.createHash('sha1').update(`${entry.path}|${entry.size}|${entry.mtime}|${this.encoder}|${rungs.map((r) => r.name).join()}|a2${this.cfg.normalizeAudio === false ? 'n' : ''}`).digest('hex').slice(0, 10)
     const dir = path.join(this.cfg.cacheDir, `${entry.id}-${sig}`)
     fs.mkdirSync(dir, { recursive: true })
     fs.utimesSync(dir, new Date(), new Date())
@@ -210,7 +210,7 @@ export class Streamer {
 
     const dir = path.join(s.dir, rung.name, `j${String(startSeg).padStart(5, '0')}-${Date.now().toString(36)}`)
     fs.mkdirSync(dir, { recursive: true })
-    const args = encodeArgs({ input: s.entry.path, info: s.info, rung, encoder: this.encoder, startSeg, outDir: dir, tonemap: this.tonemap, hwDecode: this.cfg.hwDecode !== false })
+    const args = encodeArgs({ input: s.entry.path, info: s.info, rung, encoder: this.encoder, startSeg, outDir: dir, tonemap: this.tonemap, hwDecode: this.cfg.hwDecode !== false, normalizeAudio: this.cfg.normalizeAudio !== false })
     const proc = spawn(this.cfg.ffmpegPath, args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
     const job = { rung, start: startSeg, produced: startSeg - 1, dir, proc, running: true, done: false, error: null, killed: false, lastWanted: Date.now(), started: Date.now(), session: s }
     let err = ''

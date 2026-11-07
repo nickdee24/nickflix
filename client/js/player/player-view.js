@@ -80,9 +80,10 @@ export class PlayerView extends Emitter {
     this.playBtn = cb('play', 'Play (K)', () => this.togglePlay())
     this.muteBtn = cb('volume', 'Mute (M)', () => this.engine.muted(!this.engine.muted()))
     this.volSlider = h('input.slider', {
-      type: 'range', min: 0, max: 1, step: 0.02, value: settings.get('volume'), 'aria-label': 'Volume',
+      type: 'range', min: 0, max: 2, step: 0.02, value: settings.get('volume'), 'aria-label': 'Volume (past 100% boosts it)',
       oninput: (e) => this.engine.volume(Number(e.target.value))
     })
+    this.volPct = h('span.vol-pct.num', '')
     this.timeEl = h('div.time.num', '0:00', h('span', ' / 0:00'))
     this.syncSlot = h('div.sync-pill')
     this.speedBtn = cb('speed', 'Playback speed', (e) => this.#openMenu('speed', e.currentTarget), '.hide-sm')
@@ -99,7 +100,7 @@ export class PlayerView extends Emitter {
         this.playBtn,
         cb('back10', 'Back 10s (J)', () => this.skip(-10), '.hide-sm'),
         cb('fwd10', 'Forward 10s (L)', () => this.skip(10), '.hide-sm'),
-        h('div.volume', this.muteBtn, this.volSlider),
+        h('div.volume', this.muteBtn, this.volSlider, this.volPct),
         this.timeEl,
         h('div.grow'),
         this.syncSlot,
@@ -160,12 +161,7 @@ export class PlayerView extends Emitter {
       this.emit('loaded')
     })
     e.on('levelchange', () => this.#updateNet())
-    e.on('volumechange', ({ volume, muted }) => {
-      const v = muted ? 0 : volume
-      this.volSlider.value = v
-      this.volSlider.style.setProperty('--fill', `${v * 100}%`)
-      this.muteBtn.replaceChildren(icon(muted || v === 0 ? 'mute' : v < 0.5 ? 'volumeLow' : 'volume'))
-    })
+    e.on('volumechange', ({ volume, muted }) => this.#showVolume(volume, muted))
     e.on('tracks', () => this.ccBtn.classList.toggle('on', !!e.activeSub))
     e.on('notice', (m) => toast(m, 'info', 5000))
     e.on('fatal', (m) => this.#showError(m))
@@ -174,7 +170,19 @@ export class PlayerView extends Emitter {
       toast('Tap play to start — your browser blocked autoplay with sound.', 'warn', 5000)
       this.emit('autoplay-blocked')
     })
-    this.volSlider.style.setProperty('--fill', `${(settings.get('muted') ? 0 : settings.get('volume')) * 100}%`)
+    this.#showVolume(settings.get('volume'), settings.get('muted'))
+  }
+
+  #showVolume (volume, muted) {
+    const max = this.engine.maxVolume()
+    const v = muted ? 0 : Math.min(max, volume)
+    this.volSlider.max = max
+    this.volSlider.value = v
+    this.volSlider.style.setProperty('--fill', `${(v / max) * 100}%`)
+    this.volSlider.title = `Volume ${Math.round(v * 100)}%`
+    this.volPct.textContent = `${Math.round(v * 100)}%`
+    this.volPct.classList.toggle('boost', v > 1.001)
+    this.muteBtn.replaceChildren(icon(muted || v === 0 ? 'mute' : v < 0.5 ? 'volumeLow' : 'volume'))
   }
 
   setState (s) {

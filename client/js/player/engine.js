@@ -14,6 +14,9 @@ import { Emitter } from '../lib/dom.js'
 import { settings } from '../state/store.js'
 import { cuesToVttUrl } from '../services/subtitles.js'
 
+/** Highest volume the slider allows: 2 = 200%, like VLC's boost. */
+const MAX_VOLUME = 2
+
 export class PlayerEngine extends Emitter {
   constructor (videoEl) {
     super()
@@ -39,8 +42,15 @@ export class PlayerEngine extends Emitter {
     this.lastSourceChange = 0
 
     const v = this.vjs
-    v.volume(settings.get('volume'))
+    // Volume runs 0–200% like VLC: up to 100% is the video element's own
+    // volume, above that a Web Audio gain (with a limiter so it doesn't crackle).
+    this.level = Math.max(0, Math.min(MAX_VOLUME, Number(settings.get('volume')) || 0))
+    this.audio = null
+    v.volume(Math.min(1, this.level))
     v.muted(settings.get('muted'))
+    // Browsers only allow audio processing after a click or key press, so a
+    // saved boost is applied on the first interaction with the page.
+    if (this.level > 1) this.#armBoost()
 
     v.on('timeupdate', () => this.emit('timeupdate', this.time()))
     v.on('play', () => this.emit('play'))
@@ -48,9 +58,11 @@ export class PlayerEngine extends Emitter {
     v.on('ended', () => this.emit('ended'))
     v.on('ratechange', () => this.emit('ratechange', v.playbackRate()))
     v.on('volumechange', () => {
-      settings.set('volume', v.volume())
+      // The element sits at 100% while boosting; only a lower value is a real change.
+      if (!(v.volume() >= 0.999 && this.level > 1)) this.level = v.volume()
+      settings.set('volume', this.level)
       settings.set('muted', v.muted())
-      this.emit('volumechange', { volume: v.volume(), muted: v.muted() })
+      this.emit('volumechange', { volume: this.level, muted: v.muted() })
     })
     v.on('progress', () => this.emit('progress'))
     v.on(['waiting', 'stalled'], () => { if (!this.#hasDataAhead()) this.#setWaiting(true) })
@@ -182,7 +194,56 @@ export class PlayerEngine extends Emitter {
   /** Gentle catch-up rate used by the sync engine without announcing a "rate change". */
   nudgeRate (r) { const el = this.el(); if (el && Math.abs(el.playbackRate - r) > 0.001) el.playbackRate = r }
 
-  volume (v) { if (v === undefined) return this.vjs.volume(); this.vjs.volume(Math.max(0, Math.min(1, v))); if (v > 0) this.vjs.muted(false) }
+  /** 0 – maxVolume() (2 = 200%). */
+  volume (v) {
+    if (v === undefined) return this.level
+    v = Math.max(0, Math.min(this.maxVolume(), Math.round(v * 100) / 100))
+    this.level = v
+    this.#setGain(Math.max(1, v))
+    this.vjs.volume(Math.min(1, v))
+    if (v > 0) this.vjs.muted(false)
+    // vjs only fires volumechange when the element's volume changes, so report boosts ourselves.
+    settings.set('volume', v)
+    this.emit('volumechange', { volume: v, muted: this.vjs.muted() })
+  }
+  /** iPhone's built-in player can't be routed through Web Audio, so no boost there. */
+  maxVolume () { return this.native ? 1 : MAX_VOLUME }
+
+  #armBoost () {
+    const go = () => { off(); this.#setGain(Math.max(1, this.level)) }
+    const off = () => ['pointerdown', 'keydown'].forEach((ev) => document.removeEventListener(ev, go, true))
+    ;['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, go, true))
+  }
+
+  #setGain (g) {
+    if (g <= 1 && !this.audio) return
+    const el = this.el()
+    if (!el || this.native) return
+    try {
+      if (!this.audio || this.audio.el !== el) {
+        const AC = window.AudioContext || window.webkitAudioContext
+        if (!AC) return
+        const ctx = this.audio?.ctx || new AC()
+        const src = ctx.createMediaElementSource(el)
+        const gain = ctx.createGain()
+        const limiter = ctx.createDynamicsCompressor()
+        src.connect(gain).connect(limiter).connect(ctx.destination)
+        this.audio = { ctx, el, gain, limiter }
+      }
+      const { ctx, gain, limiter } = this.audio
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+      gain.gain.setTargetAtTime(g, ctx.currentTime, 0.03)
+      // Only limit while boosting; at 100% or less the chain is transparent.
+      const boosting = g > 1.001
+      limiter.threshold.value = boosting ? -3 : 0
+      limiter.knee.value = boosting ? 3 : 0
+      limiter.ratio.value = boosting ? 20 : 1
+      limiter.attack.value = 0.002
+      limiter.release.value = 0.2
+    } catch (e) {
+      console.warn('Volume boost unavailable', e)
+    }
+  }
   muted (m) { if (m === undefined) return this.vjs.muted(); this.vjs.muted(m) }
 
   /** Buffered ranges: [[start, end], …] */
@@ -280,6 +341,7 @@ export class PlayerEngine extends Emitter {
   }
 
   dispose () {
+    try { this.audio?.ctx.close() } catch {}
     this.#destroyHls()
     for (const s of this.subs) if (s.url) URL.revokeObjectURL(s.url)
     this.vjs.dispose()
