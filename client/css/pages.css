@@ -79,6 +79,7 @@
 .person .pstatus.watching { color: #7fd683; }
 .person .pstatus.buffering { color: #ffc65c; }
 .person.offline { opacity: .5; }
+.person.away { opacity: .6; transition: opacity var(--t-fast); }
 .person.viewer { align-items: flex-start; }
 .vstats { display: flex; flex-direction: column; gap: 5px; margin-top: 5px; }
 /* One fixed line: the text changes every second, and letting it wrap made the

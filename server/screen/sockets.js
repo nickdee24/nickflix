@@ -6,6 +6,8 @@
  *   screen:join   { username, clientKey, hostKey? }
  *   screen:leave
  *   screen:report { key, loaded, ahead, bw, height, auto, drift, waiting }   once a second
+ *   screen:presence { away }                     tab hidden/shown → "Away"
+ *   screen:bye                                   tab/browser closing → removed (also POST /api/screen/bye)
  *   screen:load   { id } | { name, size }      host key only: prepare a movie on the PC
  *   screen:library                               host key only: list the PC's movie folder
  *   screen:unload                                host key only
@@ -42,6 +44,11 @@ export function attachSockets (io, { screen, hostLink }) {
   const broadcastPlayback = (extra = {}) => io.to(ROOM).emit('playback:state', { ...screen.playbackView(), ...extra })
   const system = (text) => io.to(ROOM).emit('chat:message', screen.system(text))
   const pushAdminStatus = () => io.to(ADMINS).emit('host:status', hostLink.adminStatus())
+  /** Called when a member's grace period runs out and they're dropped from the list. */
+  const removed = (m) => () => {
+    system(m.gone ? `${m.name} left` : `${m.name} disconnected`)
+    broadcastState()
+  }
 
   // ---- wait-for-everyone + live buffer bars ---------------------------------
   setInterval(() => {
@@ -149,6 +156,12 @@ export function attachSockets (io, { screen, hostLink }) {
     socket.on('screen:leave', (cb) => { leave(); reply(cb, { ok: true }) })
 
     socket.on('screen:report', (r = {}) => { if (userId && r && typeof r === 'object') screen.report(userId, r) })
+
+    // Tab hidden/shown → "Away". Page closing → remove on disconnect.
+    socket.on('screen:presence', (p = {}) => {
+      if (userId && p && typeof p === 'object' && screen.setAway(userId, p.away)) broadcastState()
+    })
+    socket.on('screen:bye', () => { if (userId) bye(userId) })
 
     // ---- host controls ----------------------------------------------------
     socket.on('screen:library', async (cb) => {
@@ -267,13 +280,17 @@ export function attachSockets (io, { screen, hostLink }) {
     socket.on('disconnect', () => {
       const m = me()
       if (!m) return
-      screen.detach(m.id, socket.id, () => {
-        system(`${m.name} disconnected`)
-        broadcastState()
-      })
+      screen.detach(m.id, socket.id, removed(m))
       broadcastState()
     })
   })
+
+  /** Page closing (socket message or sendBeacon to /api/screen/bye). */
+  function bye (userId) {
+    const m = screen.members.get(userId)
+    if (m && screen.markClosing(userId, removed(m))) broadcastState()
+  }
+  return { bye }
 }
 
 function list (names) {

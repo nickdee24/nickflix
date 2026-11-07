@@ -67,10 +67,18 @@ export class Screen {
     m.removeTimer = null
     m.sockets.add(socketId)
     m.connected = true
+    m.closing = false
+    m.gone = false
+    m.away = false // the browser re-sends this right after joining
     return m
   }
 
-  /** On disconnect: keep the member for a grace period so a refresh doesn't drop them. */
+  /**
+   * On disconnect. If the page said goodbye (tab/browser closed), hide the
+   * member straight away and drop them after a few seconds; a refresh rejoins
+   * inside that window and nobody notices. A silent drop (network blip, phone
+   * asleep) keeps them listed as away for the longer grace period.
+   */
   detach (userId, socketId, onRemoved) {
     const m = this.members.get(userId)
     if (!m) return
@@ -78,10 +86,41 @@ export class Screen {
     if (m.sockets.size) return
     m.connected = false
     m.net = emptyNet()
+    m.gone = !!m.closing
     m.removeTimer = setTimeout(() => {
       this.members.delete(userId)
       onRemoved?.()
-    }, config.memberGraceMs)
+    }, m.gone ? config.closeGraceMs : config.memberGraceMs)
+  }
+
+  /**
+   * The page is closing (pagehide, via socket and/or sendBeacon). Usually this
+   * arrives before the socket drops and detach() does the rest; if the drop won
+   * the race, switch the pending removal to the short close grace now.
+   * Returns true if the member list changed.
+   */
+  markClosing (userId, onRemoved) {
+    const m = this.members.get(userId)
+    if (!m) return false
+    m.closing = true
+    if (m.connected || m.gone) return false
+    m.gone = true
+    clearTimeout(m.removeTimer)
+    m.removeTimer = setTimeout(() => {
+      this.members.delete(userId)
+      onRemoved?.()
+    }, config.closeGraceMs)
+    return true
+  }
+
+  /** Tab hidden / shown. Returns true if it changed. */
+  setAway (userId, away) {
+    const m = this.members.get(userId)
+    if (!m) return false
+    m.closing = false // the page is still alive (e.g. restored from the back/forward cache)
+    if (m.away === !!away) return false
+    m.away = !!away
+    return true
   }
 
   remove (userId) {
@@ -216,7 +255,7 @@ export class Screen {
 
   // ---------------------------------------------------------------- views
   memberView (m) {
-    return { id: m.id, name: m.name, color: m.color, admin: m.admin, connected: m.connected, joinedAt: m.joinedAt }
+    return { id: m.id, name: m.name, color: m.color, admin: m.admin, connected: m.connected, away: !!m.away, joinedAt: m.joinedAt }
   }
 
   snapshot (host) {
@@ -225,7 +264,7 @@ export class Screen {
       name: this.name,
       settings: this.settings,
       media: this.media,
-      members: [...this.members.values()].sort((a, b) => a.joinedAt - b.joinedAt).map((m) => this.memberView(m)),
+      members: [...this.members.values()].filter((m) => !m.gone).sort((a, b) => a.joinedAt - b.joinedAt).map((m) => this.memberView(m)),
       playback: this.playbackView(),
       hold: this.hold ? { ids: this.hold.ids, since: this.hold.since } : null,
       host

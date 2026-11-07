@@ -56,9 +56,9 @@ const io = new SocketServer(server, {
 
 const screen = new Screen()
 const hostLink = new HostLink(io)
-attachSockets(io, { screen, hostLink })
+const sockets = attachSockets(io, { screen, hostLink })
 
-app.use('/api', createApi({ screen, hostLink }))
+app.use('/api', createApi({ screen, hostLink, bye: sockets.bye }))
 
 // Vendored libraries served from node_modules (no CDN needed).
 app.use('/vendor/videojs', express.static(path.join(ROOT, 'node_modules/video.js/dist'), { maxAge: '7d' }))

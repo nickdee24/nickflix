@@ -76,6 +76,7 @@ export function screenPage (params, shell) {
       S.joined = true
       if (firstTime) buildLayout()
       if (firstTime || res.state.media?.key !== S.mediaKey) S.mediaKey = undefined // (re)render the main column with our role
+      if (document.hidden) socket.send('screen:presence', { away: true })
       onState(res.state)
       chat.reset(res.chat)
       onPlayback(res.state.playback)
@@ -87,6 +88,17 @@ export function screenPage (params, shell) {
   }
 
   d.add(socket.on('status', (s) => { if (s === 'online' && S.joined) join(false) }))
+
+  // Presence: another tab / minimised → "Away"; closing the tab or browser →
+  // removed from the list (the server waits a few seconds so a refresh is silent).
+  d.listen(document, 'visibilitychange', () => { if (S.joined) socket.send('screen:presence', { away: document.hidden }) })
+  d.listen(window, 'pagehide', () => {
+    if (!S.joined) return
+    socket.send('screen:bye')
+    // A socket message can be lost while the page unloads; a beacon is delivered even then.
+    try { navigator.sendBeacon('/api/screen/bye', JSON.stringify({ clientKey: identity.clientKey })) } catch { /* old browser */ }
+  })
+  d.listen(window, 'pageshow', (e) => { if (e.persisted && S.joined) socket.send('screen:presence', { away: document.hidden }) })
 
   // ======================================================================
   // Socket events
@@ -544,7 +556,7 @@ export function screenPage (params, shell) {
     const seen = new Set()
     const order = st.members.map((m) => {
       const n = S.net.get(m.id)
-      const presence = !m.connected ? 'away' : n?.waiting ? 'buffering' : n?.loaded ? 'watching' : 'idle'
+      const presence = !m.connected || m.away ? 'away' : n?.waiting ? 'buffering' : n?.loaded ? 'watching' : 'idle'
       const sig = JSON.stringify([m.name, m.color, m.admin, m.connected, m.id === S.me, S.admin])
       const stats = viewerStats(m, n, holdIds.has(m.id))
       let row = p.rows.get(m.id)
@@ -552,9 +564,10 @@ export function screenPage (params, shell) {
         row.stats = patchStats(row.stats, stats)
         const dot = row.el.querySelector('.avatar .presence')
         if (dot && !dot.classList.contains(presence)) dot.className = `presence ${presence}`
+        row.el.classList.toggle('away', !!m.away)
       } else {
         row = { sig, stats }
-        row.el = h(`div.person.viewer${m.connected ? '' : '.offline'}`,
+        row.el = h(`div.person.viewer${m.connected ? '' : '.offline'}${m.away ? '.away' : ''}`,
           avatar({ name: m.name, color: m.color, status: presence }),
           h('div.pinfo',
             h('div.pname', h('span.truncate', m.name), m.admin ? icon('crown', 'crown') : null, m.id === S.me ? h('span.you', 'you') : null),
@@ -604,11 +617,12 @@ export function screenPage (params, shell) {
   /** "████░░  28s · 1080p · 24 Mbps · ±38ms" */
   function viewerStats (m, n, held) {
     if (!m.connected) return h('span.pstatus', 'Away')
-    if (!S.state.media) return h('span.pstatus', 'In the lobby')
+    if (!S.state.media) return h('span.pstatus', m.away ? 'Away · on another tab' : 'In the lobby')
     if (!n || !n.loaded) return h('div.vstats', bufferBar(0, 'loading'), h('span.pstatus', h('span.dot.info.pulse'), 'Loading…'))
     const pct = Math.min(1, n.ahead / BUFFER_GOAL)
     const state = n.waiting ? 'stalled' : held ? 'low' : pct < 0.2 ? 'low' : 'ok'
     const parts = [`${Math.floor(n.ahead)}s buffered`]
+    if (m.away) parts.unshift('Away')
     if (n.height) parts.push(`${n.quality || `${n.height}p`}${n.auto ? '' : ' (fixed)'}`)
     if (n.bw) parts.push(`${(n.bw / 1e6).toFixed(n.bw < 1e7 ? 1 : 0)} Mbps`)
     const sync = n.drift == null ? null : Math.abs(n.drift) < 1000 ? `±${Math.abs(Math.round(n.drift))}ms` : `${n.drift > 0 ? '+' : '−'}${(Math.abs(n.drift) / 1000).toFixed(1)}s`
