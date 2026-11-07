@@ -739,9 +739,10 @@ function buildCinema (screenEl) {
   // Geometry matches cinema.css: walls meet the screen at x=23%, y=12%…66%.
   const WALL = 23
   const mirror = (side, x) => (side === 'left' ? `${x}%` : `${100 - x}%`)
-  // Spot lights along the top of each wall, spaced closer as they recede.
-  const LIGHTS = Array.from({ length: 10 }, (_, i) => {
-    const x = 1.6 + (WALL - 2.4) * (1 - Math.pow(0.78, i + 0.6))
+  // Spot lights along the top of each wall, spaced closer as they recede, with
+  // dark wall between them (fewer lights, so each beam stands on its own).
+  const LIGHTS = Array.from({ length: 6 }, (_, i) => {
+    const x = 1.6 + (WALL - 2.4) * (1 - Math.pow(0.7, i + 0.6))
     const depth = x / WALL
     return [x, (x * 12) / WALL + 4.2 * (1 - depth * 0.7), 2.3 - depth * 1.6]
   })
