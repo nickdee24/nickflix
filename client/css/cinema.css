@@ -1,0 +1,167 @@
+/* ==========================================================================
+   The cinema: looking down an auditorium at Screen 1.
+
+   data-scene on .cinema drives everything:
+     lobby    lights up, the screen sits at the far end of the room
+     playing  lights down to black, the screen comes forward to fill the view
+     paused   back out again, lights up, the picture dimmed
+   Transition timings are set per change from JS (--lights-dur, --zoom-dur,
+   --lights-delay, --zoom-delay) so the intro can run lights → zoom → prompt.
+   ========================================================================== */
+.cinema {
+  --lights-dur: 1.6s; --lights-delay: 0s;
+  --zoom-dur: 1.6s; --zoom-delay: 0s;
+  --wall-in: 21%;          /* where the side walls meet the screen */
+  --screen-top: 10%;
+  --screen-bottom: 68%;
+  position: relative;
+  width: 100%;
+  max-width: calc((100dvh - 128px) * 16 / 9);
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-2xl);
+  overflow: hidden;
+  background: #050304;
+  isolation: isolate;
+  box-shadow: var(--shadow-2);
+}
+.cinema.no-anim, .cinema.no-anim * { transition: none !important; }
+
+/* ---------- the room ---------- */
+.cin-room { position: absolute; inset: 0; z-index: 0; }
+
+.cin-ceiling {
+  position: absolute; inset: 0 0 auto 0; height: 40%;
+  background:
+    radial-gradient(60% 120% at 50% 0%, rgba(255, 196, 140, .10), transparent 70%),
+    linear-gradient(#0f0708, #160a0b 60%, transparent);
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--wall-in)) var(--screen-top), var(--wall-in) var(--screen-top));
+}
+/* Back wall around the screen */
+.cin-back { position: absolute; left: var(--wall-in); right: var(--wall-in); top: var(--screen-top); bottom: calc(100% - var(--screen-bottom) - 4%); background: #0b0506; }
+
+.cin-wall {
+  position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 26px),
+    linear-gradient(180deg, #3a1015 0%, #2a0b0f 45%, #14060a 100%);
+}
+.cin-wall.left { clip-path: polygon(0 0, var(--wall-in) var(--screen-top), var(--wall-in) calc(var(--screen-bottom) + 4%), 0 100%); }
+.cin-wall.right { clip-path: polygon(100% 0, calc(100% - var(--wall-in)) var(--screen-top), calc(100% - var(--wall-in)) calc(var(--screen-bottom) + 4%), 100% 100%); }
+.cin-wall.right { background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 26px),
+    linear-gradient(180deg, #34101a 0%, #260a10 45%, #12050a 100%); }
+
+/* Wall lights: a warm lamp with a wash of light going up the wall */
+.sconce {
+  position: absolute; width: calc(var(--s) * 1.1%); aspect-ratio: 1 / 1.6;
+  transform: translate(-50%, -50%);
+  border-radius: 40% 40% 50% 50%;
+  background: radial-gradient(circle at 50% 40%, #fff3d6, #ffb764 55%, #b8601f);
+  box-shadow: 0 0 calc(var(--s) * 3px) calc(var(--s) * 1px) rgba(255, 176, 92, .75);
+  opacity: 1;
+  transition: opacity var(--lights-dur) ease var(--lights-delay), box-shadow var(--lights-dur) ease var(--lights-delay);
+}
+.sconce::after {
+  content: ""; position: absolute; left: 50%; bottom: 60%;
+  width: 520%; height: 900%; transform: translateX(-50%);
+  background: radial-gradient(50% 100% at 50% 100%, rgba(255, 186, 110, .38), rgba(255, 160, 80, .12) 45%, transparent 75%);
+  pointer-events: none;
+  transition: opacity var(--lights-dur) ease var(--lights-delay);
+}
+.sconce::before { /* small downward pool */
+  content: ""; position: absolute; left: 50%; top: 70%; width: 300%; height: 300%; transform: translateX(-50%);
+  background: radial-gradient(50% 50% at 50% 0%, rgba(255, 186, 110, .22), transparent 70%);
+}
+
+/* Floor and the rows of seats in front of us */
+.cin-floor {
+  position: absolute; inset: auto 0 0 0; height: 40%;
+  background: linear-gradient(180deg, #120709, #070304);
+  clip-path: polygon(var(--wall-in) 0, calc(100% - var(--wall-in)) 0, 100% 100%, 0 100%);
+}
+.cin-seats { position: absolute; inset: auto 0 0 0; height: 36%; transition: transform var(--zoom-dur) cubic-bezier(.6, 0, .2, 1) var(--zoom-delay), opacity var(--zoom-dur) ease var(--zoom-delay); }
+.seat-row { position: absolute; left: 50%; display: flex; transform: translateX(-50%); }
+.seat-row span {
+  flex: none; border-radius: 42% 42% 12% 12%;
+  background: linear-gradient(180deg, #5a1820 0%, #3a0e14 35%, #1a0609 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 190, 170, .14), 0 4px 10px rgba(0, 0, 0, .6);
+}
+.seat-row.r1 { bottom: 64%; gap: .5%; width: 62%; } .seat-row.r1 span { width: 6.1%; aspect-ratio: 1 / .9; }
+.seat-row.r2 { bottom: 34%; gap: .6%; width: 80%; } .seat-row.r2 span { width: 7.2%; aspect-ratio: 1 / .9; }
+.seat-row.r3 { bottom: -6%; gap: .8%; width: 104%; } .seat-row.r3 span { width: 9.2%; aspect-ratio: 1 / .95; }
+.seat-row span:nth-child(odd) { filter: brightness(.92); }
+
+/* Light from the screen falling on the room */
+.cin-spill {
+  position: absolute; left: var(--wall-in); right: var(--wall-in); top: var(--screen-bottom); height: 36%;
+  background: radial-gradient(60% 70% at 50% 0%, rgba(200, 210, 255, .07), transparent 70%);
+  pointer-events: none;
+}
+
+/* Darkness that falls over the room when the lights go down */
+.cin-dark {
+  position: absolute; inset: 0; z-index: 1; background: #000; opacity: 0; pointer-events: none;
+  transition: opacity var(--lights-dur) ease var(--lights-delay);
+}
+
+/* ---------- the screen ---------- */
+.cin-screen {
+  position: absolute; inset: 0; z-index: 2;
+  transform-origin: 50% 50%;
+  /* Sits between the walls at the far end of the room */
+  transform: translateY(-11%) scale(.58);
+  transition: transform var(--zoom-dur) cubic-bezier(.6, 0, .2, 1) var(--zoom-delay);
+  will-change: transform;
+}
+.cin-screen > * { position: absolute; inset: 0; }
+.cin-screen .player, .cin-screen .stage {
+  width: 100%; height: 100%; max-height: none; aspect-ratio: auto; min-height: 0;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 60px rgba(210, 220, 255, .10);
+  transition: border-radius var(--zoom-dur) ease var(--zoom-delay), box-shadow var(--zoom-dur) ease var(--zoom-delay);
+}
+.cin-screen .player .video-js { transition: filter var(--lights-dur) ease var(--lights-delay); }
+
+/* ---------- scenes ---------- */
+.cinema[data-scene="playing"] .cin-screen { transform: none; }
+.cinema[data-scene="playing"] .cin-dark { opacity: 1; }
+.cinema[data-scene="playing"] .sconce { opacity: 0; box-shadow: none; }
+.cinema[data-scene="playing"] .cin-seats { transform: translateY(40%); opacity: 0; }
+.cinema[data-scene="playing"] .cin-screen .player,
+.cinema[data-scene="playing"] .cin-screen .stage { border-radius: var(--r-2xl); box-shadow: none; }
+
+/* Intro step 1: lights are going down, the screen hasn't moved yet */
+.cinema[data-scene="dimming"] .cin-dark { opacity: .82; }
+.cinema[data-scene="dimming"] .sconce { opacity: 0; box-shadow: none; }
+
+.cinema[data-scene="paused"] .cin-screen .player .video-js { filter: brightness(.42) saturate(.8); }
+
+/* While the screen is small, keep the player's chrome readable */
+.cinema:not([data-scene="playing"]) .player .player-top { padding: 14px 18px; }
+
+/* ---------- fullscreen prompt ---------- */
+.fs-prompt {
+  position: absolute; left: 50%; top: 50%; z-index: 40; transform: translate(-50%, -50%);
+  background: var(--glass-strong); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line-strong); border-radius: var(--r-xl);
+  padding: 22px 24px; text-align: center; min-width: 280px; box-shadow: var(--shadow-float);
+  animation: fs-in .4s var(--ease-out);
+}
+.fs-prompt h3 { font-size: 1.2rem; color: var(--text-strong); }
+.fs-prompt p { color: var(--muted); font-size: 0.9rem; margin: 6px 0 16px; font-variant-numeric: tabular-nums; }
+.fs-prompt .row { display: flex; gap: 10px; justify-content: center; }
+@keyframes fs-in { from { opacity: 0; transform: translate(-50%, -46%); } }
+
+@media (max-width: 960px) {
+  .cinema { border-radius: var(--r-lg); max-width: none; }
+  .fs-prompt { padding: 16px; min-width: 0; width: 86%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cin-screen, .cin-seats { transition-duration: .01s !important; }
+}
+html[data-motion="reduced"] .cin-screen, html[data-motion="reduced"] .cin-seats { transition-duration: .01s !important; }
+
+/* During the intro the play button and the 3-2-1 make way for the prompt */
+.cinema.intro .big-play { opacity: 0; pointer-events: none; }
+.cinema .player:has(.fs-prompt) .countdown { display: none; }

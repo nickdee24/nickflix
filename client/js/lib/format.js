@@ -1,22 +1,10 @@
 /** Formatting helpers. */
-import { settings } from '../state/store.js'
 
 export function bytes (n, dp = 1) {
   if (!Number.isFinite(n) || n <= 0) return '0 B'
   const u = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)))
   return `${(n / 1024 ** i).toFixed(i === 0 ? 0 : dp)} ${u[i]}`
-}
-
-/** Speed as { value, unit } so the number and unit can be styled separately. */
-export function speed (bps) {
-  if (settings.get('speedUnits') === 'bits') {
-    const b = (bps || 0) * 8
-    if (b >= 1e6) return { value: (b / 1e6).toFixed(1), unit: 'Mbit/s' }
-    return { value: (b / 1e3).toFixed(0), unit: 'kbit/s' }
-  }
-  if (bps >= 1024 * 1024) return { value: (bps / 1024 / 1024).toFixed(1), unit: 'MB/s' }
-  return { value: ((bps || 0) / 1024).toFixed(0), unit: 'KB/s' }
 }
 
 export function clock (sec) {

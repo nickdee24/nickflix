@@ -1,116 +1,140 @@
-# NickFlix
+# NickFlix — Screen 1
 
-Stream any torrent in the browser and watch it together in synced watch parties.
-The UI borrows the **Truck Dash** look: a near-black canvas, flat charcoal panels, one electric-blue accent (`#3B9EFF`), pill status chips, round floating buttons and chunky tabular numbers.
+A private cinema for you and your friends. Movies stream from **your own PC**, everyone watches in sync from one link, and each person gets the best quality their internet can handle, like Netflix.
 
-## Features
+- **One screen, one link.** No rooms or library pages: everyone opens the site and lands on Screen 1.
+- **Drag and drop.** Drag a movie from your movie folder onto the screen (or pick it from the list under it) and it loads for everyone.
+- **Adaptive quality.** Your PC encodes the movie into 4-second chunks at several qualities (from 360p up to 1080p, or 4K for 4K files). Each viewer's player measures their connection and switches quality on the fly. Switches happen on chunk boundaries in the video already buffered ahead, so the picture just gets sharper or softer and never pauses for it.
+- **Anyone can play, pause and skip**, and it happens for everyone. The host can lock that to themselves.
+- **Buffer bars for everyone.** The sidebar shows each viewer's buffer, quality, measured connection speed and how many milliseconds they are from the room clock (e.g. `±38ms`).
+- **Waits for everyone.** If someone runs out of buffer, the screen pauses until everyone has a few seconds banked, then carries on together.
+- **The cinema.** Screen 1 sits at the far end of an auditorium with lights along the walls. When you press play, the lights go down, the screen comes forward to fill the view, you're offered fullscreen, and then the movie starts. Pause it and the screen moves back and the lights come up.
+- Chat, reactions, subtitles (picked up from the file or a `.srt` next to it, or drop one onto the player), picture-in-picture and keyboard shortcuts (press `?`).
 
-**Streaming**
-- Add a `.torrent` (drag & drop or browse) or paste a magnet link
-- Video files are detected automatically; the main feature is highlighted and samples are flagged
-- Playback starts as soon as the first pieces arrive (HTTP byte-range streaming with piece prioritisation)
-- Live stats: download/upload speed, peers, progress, time remaining
-- MP4 / WebM / MOV play directly. MKV, AVI, WMV, HEVC and other formats switch automatically to **compatibility mode**, where ffmpeg remuxes or transcodes them on the fly
-- Quality selection (Original / 1080p / 720p / 480p via transcode)
+## How it fits together
 
-**Player** (Video.js engine with fully custom controls)
-- Play/pause, ±10s, volume, fullscreen, picture-in-picture, theatre mode, playback speed
-- Subtitles: picked up automatically from the torrent (`.srt`, `.vtt`, `.ass`), or loaded from your device; four sizes
-- Preview thumbnails on the seek bar
-- Keyboard shortcuts: press `?` in the app for the list
+```
+ Your PC (NickFlix Host)                         nickflix.onrender.com
+ ┌──────────────────────────────┐   socket    ┌──────────────────────────┐
+ │ D:\Watch Together - Movies   │◀───────────▶│ Screen 1: sync clock,    │
+ │ ffmpeg + RTX GPU → HLS chunks│  (control)  │ chat, buffer reports      │
+ │ local video server :8787     │             └────────────▲─────────────┘
+ └──────────────┬───────────────┘                          │ page + sync
+                │ Cloudflare tunnel (https, no port forwarding)
+                ▼                                          │
+          viewers' browsers  ◀─────────────────────────────┘
+          (video comes straight from your PC)
+```
 
-**Watch parties**
-- Private rooms with short codes and shareable `/room/CODE` links
-- Choose a username before joining; avatars are generated from initials
-- Ready-up: the host can only start once everyone present is ready, followed by a synchronised 3-2-1 countdown
-- Host controls: lock or unlock playback controls, change the title, hand over host 👑, remove someone
-- Synced play, pause, seek and speed, with continuous drift correction (see below)
-- Live participant list with presence ("Now watching · 12:31", buffering, paused, away)
-- Live chat with typing indicators, plus 👍 ❤️ 😂 😮 reactions that float over the video
-- Refreshing the page or a brief disconnect doesn't kick you, and the host keeps their role
+The website on Render never touches the video. It runs the room: who's here, the shared play/pause clock, chat. Your PC serves the video directly to viewers through a free Cloudflare tunnel, which gives it a secure https address without opening any ports on your router.
+
+Encoding is per quality, not per viewer: three friends watching at 1080p cost one encode. Segments are made on demand, so a skip just starts a new encode at that point, and the PC stops encoding a few minutes ahead of the furthest viewer (pausing costs nothing).
+
+## Setup
+
+### 1. Start the host app on your PC
+
+You need [Node.js](https://nodejs.org) and ffmpeg. `start-host.bat` installs both with `winget` if they're missing.
+
+1. Get the code onto the PC (download the repo ZIP from GitHub, or `git clone`).
+2. Double-click **`host\start-host.bat`**.
+3. On first run it creates `host\config.json` and prints a **host secret**. Copy it.
+
+Movies are read from `D:\Watch Together - Movies` (including subfolders). To use another folder, change `mediaDirs` in `host\config.json`.
+
+The app picks the fastest encoder it finds (NVIDIA NVENC, then Intel Quick Sync, then AMD, then CPU) and prints which one it chose.
+
+### 2. Tell the website about your PC
+
+In Render, open the **nickflix** service, go to **Environment**, add `HOST_SECRET` with the secret from step 1, and save (Render redeploys). The host app connects automatically and logs `Screen 1 is ready`.
+
+### 3. Unlock host controls in your browser
+
+On the site, open **Settings → Host key** and paste the same secret. That browser can now put movies on, change or clear what's showing, toggle *waits for everyone* / *anyone controls*, and remove people. Everyone else just needs the link.
+
+### 4. Watch
+
+Open Screen 1, drag a movie from your movie folder onto the screen, and share the link. Browsers don't reveal where a dragged file lives, so the host app finds it in your folder by name and size. Files have to be in the movie folder.
+
+## Host app settings (`host/config.json`)
+
+| key | default | |
+|---|---|---|
+| `siteUrl` | `https://nickflix.onrender.com` | the website to connect to |
+| `secret` | random | must match `HOST_SECRET` on Render |
+| `mediaDirs` | `["D:\\Watch Together - Movies"]` | folders to scan |
+| `port` | `8787` | local video server |
+| `publicUrl` | empty | leave empty for an automatic Cloudflare quick tunnel; set it if you run your own named tunnel or reverse proxy |
+| `encoder` | `auto` | or `h264_nvenc` / `h264_qsv` / `h264_amf` / `libx264` |
+| `hwDecode` | `true` | decode on the GPU too (NVIDIA) |
+| `maxJobs` | `0` (auto) | max simultaneous encodes (6 on NVIDIA) |
+| `cacheDir` | temp folder | where encoded chunks are kept |
+| `cacheLimitGB` | `40` | oldest movies are cleared past this |
+
+HDR movies are tone-mapped to SDR so they don't look washed out in browsers.
+
+## Website settings (Render environment)
+
+| var | default | |
+|---|---|---|
+| `HOST_SECRET` | — | required; shared with the host app |
+| `SCREEN_NAME` | `Screen 1` | |
+| `MAX_MEMBERS` | 24 | |
+| `STALL_TRIGGER_MS` | 1200 | someone stalled this long → pause for them |
+| `RESUME_BUFFER_SECONDS` | 6 | everyone needs this much buffered to carry on |
+| `HOLD_TIMEOUT_MS` | 45000 | stop waiting for someone after this long |
 
 ## How sync works
 
-The server owns a playback clock for each room: `{ playing, position, rate, updatedAt }`.
-Clients estimate the server's time with an NTP-style ping and compute where the room should be right now:
+The server owns a playback clock: `{ playing, position, rate, updatedAt }`. Clients estimate the server's time with an NTP-style ping and compute where the movie should be right now:
 
 ```
 expected = position + (serverNow - updatedAt) × rate
 ```
 
-Every second each viewer compares the expected position with their own:
+Every second each viewer compares that with their own position. Under 150 ms they're in sync. Between 150 ms and the threshold (1.5 s by default) the player speeds up or slows down by 5% to glide back without a visible jump. Beyond that it seeks. The measured offset is what shows next to each person's buffer bar.
 
-| drift | action |
-|---|---|
-| < 150 ms | in sync |
-| 150 ms – threshold | speed up or slow down by 5% to glide back, without a visible jump |
-| > threshold (default 1.5 s) | hard seek |
+Starts are scheduled slightly in the future (`updatedAt` ahead of now) so everyone begins on the same frame. That window is also what the cinema intro plays in.
 
-The host is the reference. If the host buffers, the server re-anchors the clock to the host so everyone else waits for them too.
+## Running locally
+
+```bash
+npm install
+HOST_SECRET=dev-secret npm start                 # website on http://localhost:3000
+
+# in another terminal (on the PC with the movies):
+cd host && npm install
+NICKFLIX_SITE=http://localhost:3000 NICKFLIX_SECRET=dev-secret npm start
+```
+
+For a purely local test without a tunnel, also set `NICKFLIX_PUBLIC_URL=http://localhost:8787`.
 
 ## Project structure
 
 ```
 nickflix/
-├── server/
-│   ├── index.js                 Express + Socket.IO bootstrap, security headers, SPA fallback
-│   ├── config.js                env-driven settings
-│   ├── routes/api.js            REST: torrents, range streaming, probe/transcode/thumbs, rooms
-│   ├── sockets/index.js         room events, ready-up, playback intents, chat, reactions, stats
-│   ├── rooms/room-manager.js    room state + authoritative playback clock
-│   ├── services/
-│   │   ├── torrent-engine.js    WebTorrent client (deselect-by-default, LRU + idle sweep)
-│   │   └── media-service.js     ffmpeg compatibility mode, ffprobe, thumbnails
-│   └── utils/                   media type detection, rate limiting
-├── client/
-│   ├── index.html
-│   ├── public/                  favicon, manifest
-│   ├── css/                     tokens · base · layout · components · player · pages
-│   └── js/
-│       ├── main.js              app shell + router
-│       ├── components/          avatar, modal, toast, dropzone, torrent card, stats strip, media card…
-│       ├── services/            api, socket (clock sync), sync engine, subtitles, thumbnails
-│       ├── player/              engine (direct/compat timeline), player view, shortcuts
-│       ├── pages/               home, watch, rooms, room, library, settings
-│       ├── state/store.js       identity, settings, history (localStorage)
-│       └── lib/                 dom helpers, icons, formatting
-├── Dockerfile                   Node 22 + ffmpeg
-└── render.yaml                  one-click Render blueprint
+├── server/                    website (Render)
+│   ├── index.js               Express + Socket.IO, security headers, SPA fallback
+│   ├── host-link.js           /host namespace: the connection to your PC
+│   ├── screen/screen.js       Screen 1 state, playback clock, wait-for-everyone
+│   ├── screen/sockets.js      viewer events: join, play/pause/seek, reports, chat
+│   └── routes/api.js          /api/health, /api/screen
+├── host/                      NickFlix Host (your PC)
+│   ├── start-host.bat         double-click to run on Windows
+│   └── src/
+│       ├── index.js           startup, link to the website
+│       ├── library.js         movie folder index, drop matching, sidecar subtitles
+│       ├── media.js           ffprobe, encoder detection, quality ladder, ffmpeg args
+│       ├── stream.js          on-demand HLS segments, subtitles, thumbnails, cache
+│       ├── server.js          local video server
+│       └── tunnel.js          Cloudflare quick tunnel
+└── client/                    the site
+    ├── css/cinema.css         the auditorium, lights and zoom
+    └── js/
+        ├── pages/screen.js    Screen 1
+        ├── player/engine.js   hls.js adaptive playback (native HLS on iPhone)
+        ├── player/player-view.js  player UI
+        └── services/sync.js   keeps the player locked to the room clock
 ```
 
-## Running locally
-
-Requires **Node 22+**. Install **ffmpeg** too if you want compatibility mode.
-
-```bash
-npm install
-npm start          # http://localhost:3000
-```
-
-On Windows, ffmpeg is available with `winget install ffmpeg`.
-
-### Environment variables
-
-| var | default | |
-|---|---|---|
-| `PORT` | 3000 | |
-| `DOWNLOAD_DIR` | OS temp `/nickflix` | where torrent data is cached |
-| `MAX_TORRENTS` | 6 | least recently used, unpinned torrents are dropped beyond this |
-| `TORRENT_IDLE_MINUTES` | 90 | idle torrents are removed and their data deleted |
-| `MAX_TRANSCODES` | 2 | concurrent ffmpeg conversions |
-| `TRANSCODE_PRESET` | veryfast | x264 preset |
-| `NAT_TRAVERSAL` | off | set to `1` at home to enable UPnP/NAT-PMP |
-| `TORRENT_PORT` | random | fixed incoming peer port |
-
-## Deploying to Render
-
-The repo includes `render.yaml`. In Render, choose **New → Blueprint**, pick this repo and deploy. The Docker image bundles ffmpeg.
-The free plan sleeps after 15 minutes of inactivity and has very little CPU, so direct play and remuxing work well but full transcodes are slow. A paid instance, or running it on your own PC, gives much better conversion speed.
-
-## Notes
-
-- Why stream on the server? Browser-only WebTorrent can only reach WebRTC peers, and most torrents only have classic TCP/uTP peers. Running WebTorrent in Node reaches all of them, and everyone in a party shares one swarm connection.
-- Rooms are kept in memory. To run several instances, swap `RoomManager` for a Redis-backed store and add `@socket.io/redis-adapter`.
-- Only stream content you have the right to watch.
-
-MIT licensed.
+MIT licensed. Only stream content you have the right to watch.

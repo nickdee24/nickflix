@@ -9,8 +9,9 @@
  *      |drift| < 0.15s   → perfect, run at the room's rate
  *      0.15s – tolerance → nudge playbackRate ±5% to glide back in (no jump)
  *      > tolerance       → hard seek (with a little lead to cover seek latency)
- * 3. The host doesn't self-correct — the host *is* the reference. It reports
- *    its real position; if it stalls, the server re-anchors everybody to it.
+ * 3. Everyone, the host included, follows the server clock. If someone
+ *    stalls, the server pauses the room for them (see Screen.tickWaitForAll)
+ *    using the buffer reports the Screen page sends every second.
  */
 import { Emitter, Disposer } from '../lib/dom.js'
 import { socket } from './socket.js'
@@ -21,7 +22,7 @@ const FINE = 0.15
 
 export class RoomSync extends Emitter {
   /**
-   * @param {object} o { pv: PlayerView, getRoom: () => room snapshot, meId }
+   * @param {object} o { pv: PlayerView, getRoom: () => screen snapshot, meId }
    */
   constructor ({ pv, getRoom, meId }) {
     super()
@@ -31,7 +32,7 @@ export class RoomSync extends Emitter {
     this.meId = meId
     this.state = null
     this.quietUntil = 0
-    this.lastStatus = null
+    this.lastDrift = null
     this.d = new Disposer()
 
     this.controller = {
@@ -43,18 +44,14 @@ export class RoomSync extends Emitter {
     }
 
     this.d.interval(() => this.#correct(), 1000)
-    this.d.interval(() => this.#heartbeat(), 2000)
-    this.d.interval(() => this.#reportStatus(true), 5000)
-    this.d.add(this.engine.on('waiting', () => this.#reportStatus()))
     this.d.add(this.engine.on('play', () => this.#onNativePlayPause(true)))
     this.d.add(this.engine.on('pause', () => this.#onNativePlayPause(false)))
   }
 
-  get isHost () { return this.getRoom()?.hostId === this.meId }
-
   canControl () {
     const r = this.getRoom()
-    return !!r && (r.hostId === this.meId || !r.settings.controlsLocked)
+    if (!r) return false
+    return !r.settings.controlsLocked || !!r.members.find((m) => m.id === this.meId)?.admin
   }
 
   /** Expected room position right now (media seconds). */
@@ -66,7 +63,7 @@ export class RoomSync extends Emitter {
   }
 
   async #intent (event, payload, optimistic) {
-    if (!this.canControl()) { toast('The host is controlling playback.', 'info'); return }
+    if (!this.canControl()) { toast('The host has locked playback controls.', 'info'); return }
     this.quietUntil = Date.now() + 1200
     optimistic()
     try {
@@ -90,15 +87,17 @@ export class RoomSync extends Emitter {
     const e = this.engine
     this.quietUntil = Date.now() + 1200
     clearTimeout(this.startTimer)
+    clearTimeout(this.cdTimer)
 
     if (state.playing && now < state.updatedAt) {
-      // Synchronised start: hold, count down, then everyone presses play together.
+      // Scheduled start: hold, let the cinema intro run, then everyone presses play together.
       const wait = state.updatedAt - now
       e.pause()
       if (Math.abs(e.time() - state.position) > 0.3) this.#localSeek(state.position)
-      this.pv.countdown(wait)
+      if (wait >= 4500) this.cdTimer = setTimeout(() => this.pv.countdown(Math.min(wait, 3000)), Math.max(0, wait - 3000))
       this.startTimer = setTimeout(() => { e.setRate(state.rate); e.play() }, wait)
       this.emit('status', 'countdown')
+      this.emit('scheduled', { wait, action: state.action })
       return
     }
 
@@ -110,7 +109,7 @@ export class RoomSync extends Emitter {
 
     if (prev && state.by && state.by !== this.meId && state.action && state.action !== 'correct') {
       const who = this.getRoom()?.members.find((m) => m.id === state.by)?.name || 'Someone'
-      const verb = { play: 'pressed play', pause: 'paused', seek: 'skipped', rate: `set speed to ${state.rate}×` }[state.action]
+      const verb = { play: 'pressed play', pause: 'paused', seek: 'skipped', rate: `set speed to ${state.rate}×`, start: 'started the movie' }[state.action]
       if (verb) this.emit('activity', `${who} ${verb}`)
     }
   }
@@ -121,6 +120,7 @@ export class RoomSync extends Emitter {
     const e = this.engine
     if (!s) return
     if (!s.playing) {
+      this.lastDrift = null
       // Paused rooms still hold position: if someone scrubbed locally, snap back.
       if (!e.paused() && Date.now() > this.quietUntil) e.pause()
       if (Math.abs(e.time() - s.position) > 0.5 && Date.now() > this.quietUntil && !e.isWaiting()) this.#localSeek(s.position)
@@ -128,7 +128,7 @@ export class RoomSync extends Emitter {
       return
     }
     if (socket.serverNow() < s.updatedAt) return
-    if (e.isWaiting()) { this.#pill('buffering'); return }
+    if (e.isWaiting()) { this.lastDrift = null; this.#pill('buffering'); return }
     if (e.paused()) {
       // Room is playing but we're paused (autoplay blocked, tab throttled…)
       if (Date.now() > this.quietUntil) e.play()
@@ -138,11 +138,10 @@ export class RoomSync extends Emitter {
 
     const drift = e.time() - this.expected()
     this.lastDrift = drift
-    if (this.isHost) { this.#pill('host', drift); return } // host is the reference
 
     const tol = settings.get('syncTolerance')
     if (Math.abs(drift) > tol && Date.now() > this.quietUntil) {
-      this.#localSeek(this.expected() + (e.mode === 'compat' ? 0 : 0.2))
+      this.#localSeek(this.expected() + 0.2)
       e.nudgeRate(s.rate)
       this.#pill('resync', drift)
     } else if (Math.abs(drift) > FINE) {
@@ -153,12 +152,6 @@ export class RoomSync extends Emitter {
       e.nudgeRate(s.rate)
       this.#pill('synced', drift)
     }
-  }
-
-  /** Host reports real position so the room follows the host if the host stalls. */
-  #heartbeat () {
-    if (!this.isHost || !this.state?.playing) return
-    socket.send('playback:report', { position: this.engine.time(), playing: !this.engine.paused() && !this.engine.isWaiting() })
   }
 
   /**
@@ -178,20 +171,10 @@ export class RoomSync extends Emitter {
       if (s.playing) this.engine.play()
       else this.engine.pause()
     }
-    this.#reportStatus()
-  }
-
-  #reportStatus (force = false) {
-    const e = this.engine
-    const status = e.isWaiting() && this.state?.playing ? 'buffering' : !e.paused() ? 'watching' : this.state?.started ? 'paused' : 'idle'
-    if (!force && status === this.lastStatus) return
-    this.lastStatus = status
-    socket.send('room:status', { status, position: e.time() })
   }
 
   #pill (kind, drift) {
     this.emit('pill', { kind, drift })
-    this.#reportStatus()
   }
 
   /** Manual "Sync now" button. */
@@ -204,6 +187,7 @@ export class RoomSync extends Emitter {
 
   destroy () {
     clearTimeout(this.startTimer)
+    clearTimeout(this.cdTimer)
     this.d.dispose()
   }
 }

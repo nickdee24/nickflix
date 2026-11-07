@@ -1,9 +1,8 @@
 /* ==========================================================================
    NickFlix design tokens
-   Lifted from Truck Dash: near-black canvas, flat charcoal panels, a single
-   electric-blue accent, traffic-light status colours and chunky tabular
-   numerals. Glass is used sparingly — only for overlays that float over video
-   (exactly like Truck Dash's ETA strip floating over the map).
+   Near-black canvas, flat charcoal panels, one NickFlix-red accent (taken from
+   the logo), traffic-light status colours and chunky tabular numerals. Glass
+   is used sparingly, only for overlays that float over the video.
    ========================================================================== */
 :root {
   color-scheme: dark;
@@ -20,11 +19,12 @@
   --glass-strong: rgba(13, 15, 18, 0.86);
 
   /* Brand + status */
-  --accent: #3b9eff;
-  --accent-hover: #5aaeff;
-  --accent-deep: #1f6fd1;
-  --accent-ink: #06121f;
-  --accent-soft: rgba(59, 158, 255, 0.14);
+  --accent: #db202c;
+  --accent-hover: #ec3a45;
+  --accent-deep: #a5141e;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(219, 32, 44, 0.16);
+  --info: #5aa9ff;
   --ok: #4caf50;
   --ok-soft: rgba(76, 175, 80, 0.16);
   --warn: #ffb020;
@@ -57,7 +57,7 @@
   --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
   --shadow-float: 0 6px 18px rgba(0, 0, 0, 0.55);
-  --ring: 0 0 0 3px rgba(59, 158, 255, 0.35);
+  --ring: 0 0 0 3px rgba(219, 32, 44, 0.4);
 
   /* Motion */
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);

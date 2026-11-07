@@ -3,7 +3,7 @@
  * These are static, trusted strings; user data never goes through here.
  */
 const P = {
-  logo: '<path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" fill="currentColor" stroke="none"/><path d="M10.2 7.4v5.2l4.4-2.6z" fill="#0d0f12" stroke="#0d0f12" stroke-width="1.4"/>',
+  logo: '<path d="M5 2.5h4.2l5.6 11.2V2.5H19v19h-4.2L9.2 10.3v11.2H5z" fill="currentColor" stroke="none"/>',
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>',
   rooms: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
   library: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 4v14M17 4v14M3 9h4M3 13h4M17 9h4M17 13h4"/><path d="M8 21h8"/>',

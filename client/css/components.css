@@ -102,7 +102,7 @@
   width: 9px; height: 9px; border-radius: 50%; background: #666; flex-shrink: 0;
 }
 .chip.live .dot, .dot.live { background: var(--ok); box-shadow: 0 0 0 3px rgba(76,175,80,.25); }
-.chip.info .dot, .dot.info { background: var(--accent); box-shadow: 0 0 0 3px rgba(59,158,255,.25); }
+.chip.info .dot, .dot.info { background: var(--info); box-shadow: 0 0 0 3px rgba(90,169,255,.22); }
 .chip.warn .dot, .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px rgba(255,176,32,.22); }
 .chip.err .dot, .dot.err { background: var(--danger); }
 .dot.pulse { animation: pulse 1.6s ease-in-out infinite; }
@@ -211,7 +211,7 @@
 .tile svg { width: 30px; height: 30px; }
 .tile:hover { background: var(--raised); border-color: #4a4f58; }
 .tile:active { transform: scale(0.96); }
-.tile.on { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 8px 22px rgba(59,158,255,.25); }
+.tile.on { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 8px 22px rgba(219,32,44,.25); }
 .tile:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .tile .tile-value { position: absolute; top: 7px; right: 9px; font-size: 0.68rem; font-weight: 800; opacity: 0.85; }
 .tile.dashed { border-style: dashed; background: transparent; color: var(--muted); }
@@ -291,7 +291,7 @@ textarea.input { height: auto; padding: 12px 14px; resize: vertical; }
 /* ---------- Spinner (route-style ring) ---------- */
 .spinner {
   width: 46px; height: 46px; border-radius: 50%;
-  border: 4px solid rgba(59,158,255,.18);
+  border: 4px solid rgba(219,32,44,.18);
   border-top-color: var(--accent);
   animation: spin 0.9s linear infinite;
 }
@@ -327,10 +327,10 @@ textarea.input { height: auto; padding: 12px 14px; resize: vertical; }
 .toast.success { border-color: var(--ok); }
 .toast.danger { border-color: var(--danger); }
 .toast.warn { border-color: var(--warn); }
-.toast.info { border-color: var(--accent); }
+.toast.info { border-color: var(--info); }
 .toast svg { width: 18px; height: 18px; flex-shrink: 0; }
 .toast.success svg { color: var(--ok); } .toast.danger svg { color: var(--danger); }
-.toast.warn svg { color: var(--warn); } .toast.info svg { color: var(--accent); }
+.toast.warn svg { color: var(--warn); } .toast.info svg { color: var(--info); }
 
 /* ---------- Modal ---------- */
 .modal-backdrop {

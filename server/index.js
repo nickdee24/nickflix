@@ -1,8 +1,9 @@
 /**
- * NickFlix server
- *   Express  — static client, REST API, byte-range video streaming
- *   Socket.IO — watch rooms, ready-up, synced playback, chat, reactions
- *   WebTorrent — one shared torrent client for the whole server
+ * NickFlix server (runs on Render)
+ *   Express   — static client, tiny REST API
+ *   Socket.IO — Screen 1: synced playback, buffer reports, chat, reactions
+ *   /host     — the link to NickFlix Host on Nick's PC, which does the actual
+ *               video serving; viewers stream straight from the PC
  */
 import http from 'node:http'
 import path from 'node:path'
@@ -13,19 +14,14 @@ import compression from 'compression'
 import { Server as SocketServer } from 'socket.io'
 
 import { config } from './config.js'
-import { TorrentEngine } from './services/torrent-engine.js'
-import { MediaService } from './services/media-service.js'
-import { RoomManager } from './rooms/room-manager.js'
+import { Screen } from './screen/screen.js'
+import { attachSockets } from './screen/sockets.js'
+import { HostLink } from './host-link.js'
 import { createApi } from './routes/api.js'
-import { attachSockets } from './sockets/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
 const CLIENT = path.join(ROOT, 'client')
-
-const engine = new TorrentEngine()
-const media = new MediaService()
-const rooms = new RoomManager({ engine })
 
 const app = express()
 app.disable('x-powered-by')
@@ -35,10 +31,12 @@ app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: true,
     directives: {
-      'img-src': ["'self'", 'data:', 'blob:'],
-      'media-src': ["'self'", 'blob:'],
-      'connect-src': ["'self'", 'ws:', 'wss:', 'blob:'],
+      // Video, thumbnails and subtitles come from the host PC's https tunnel.
+      'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+      'media-src': ["'self'", 'blob:', 'https:'],
+      'connect-src': ["'self'", 'ws:', 'wss:', 'blob:', 'https:', 'http://localhost:*', 'http://127.0.0.1:*'],
       'script-src': ["'self'"],
+      'worker-src': ["'self'", 'blob:'], // hls.js parses video in a worker
       'style-src': ["'self'", "'unsafe-inline'"],
       'font-src': ["'self'", 'data:']
     }
@@ -46,22 +44,8 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }))
 
-// Don't gzip video streams — it breaks range requests and wastes CPU.
-app.use(compression({ filter: (req, res) => !req.path.startsWith('/api/stream') && !req.path.startsWith('/api/transcode') && compression.filter(req, res) }))
+app.use(compression())
 app.use(express.json({ limit: '32kb' }))
-
-app.use('/api', createApi({ engine, media, rooms }))
-
-// Vendored libraries served from node_modules (no CDN needed — works on a LAN with no internet).
-app.use('/vendor/videojs', express.static(path.join(ROOT, 'node_modules/video.js/dist'), { maxAge: '7d' }))
-
-app.use(express.static(CLIENT, {
-  maxAge: config.isProd ? '1h' : 0,
-  setHeaders: (res, file) => { if (file.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache') }
-}))
-
-// SPA fallback: /room/ABC123, /library, /watch/... all serve the app shell.
-app.get(/^\/(?!api|socket\.io|vendor).*/, (req, res) => res.sendFile(path.join(CLIENT, 'index.html')))
 
 const server = http.createServer(app)
 const io = new SocketServer(server, {
@@ -69,23 +53,38 @@ const io = new SocketServer(server, {
   pingTimeout: 20_000,
   maxHttpBufferSize: 64 * 1024
 })
-attachSockets(io, { rooms, engine })
+
+const screen = new Screen()
+const hostLink = new HostLink(io)
+attachSockets(io, { screen, hostLink })
+
+app.use('/api', createApi({ screen, hostLink }))
+
+// Vendored libraries served from node_modules (no CDN needed).
+app.use('/vendor/videojs', express.static(path.join(ROOT, 'node_modules/video.js/dist'), { maxAge: '7d' }))
+app.use('/vendor/hls', express.static(path.join(ROOT, 'node_modules/hls.js/dist'), { maxAge: '7d' }))
+
+app.use(express.static(CLIENT, {
+  maxAge: config.isProd ? '1h' : 0,
+  setHeaders: (res, file) => { if (file.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache') }
+}))
+
+// SPA fallback: /, /settings, old /room/… links all serve the app shell.
+app.get(/^\/(?!api|socket\.io|vendor).*/, (req, res) => res.sendFile(path.join(CLIENT, 'index.html')))
 
 server.listen(config.port, config.host, () => {
-  console.log(`\n  ▶ NickFlix running at http://localhost:${config.port}\n`)
+  console.log(`\n  ▶ NickFlix running at http://localhost:${config.port}`)
+  if (!config.hostSecret) console.log('  ⚠ HOST_SECRET is not set: the host PC can\'t connect until it is.\n')
 })
 
-// Graceful shutdown so torrent data on disk is cleaned up.
 let closing = false
 for (const sig of ['SIGINT', 'SIGTERM']) {
-  process.on(sig, async () => {
+  process.on(sig, () => {
     if (closing) return
     closing = true
     console.log('\nShutting down…')
-    media.killAll()
     io.close()
     server.close()
-    await engine.destroy().catch(() => {})
-    process.exit(0)
+    setTimeout(() => process.exit(0), 300)
   })
 }

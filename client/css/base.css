@@ -23,7 +23,7 @@ p { margin: 0; }
 
 :focus-visible { outline: none; box-shadow: var(--ring); }
 
-::selection { background: rgba(59, 158, 255, 0.35); }
+::selection { background: rgba(219, 32, 44, 0.4); }
 
 /* Scrollbars — thin, dark, Truck Dash-ish */
 * { scrollbar-width: thin; scrollbar-color: #3a3d44 transparent; }

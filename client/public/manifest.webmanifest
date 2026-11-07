@@ -1,7 +1,7 @@
 {
   "name": "NickFlix",
   "short_name": "NickFlix",
-  "description": "Stream torrents and watch together.",
+  "description": "Movies from Nick's PC, watched together in sync.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d0f12",

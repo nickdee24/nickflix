@@ -10,10 +10,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # Free instances have little CPU: allow one ffmpeg conversion at a time.
-      - key: MAX_TRANSCODES
-        value: "1"
-      - key: TRANSCODE_PRESET
-        value: ultrafast
-      - key: MAX_TORRENTS
-        value: "4"
+      # Paste the secret NickFlix Host prints on your PC the first time it runs.
+      - key: HOST_SECRET
+        sync: false

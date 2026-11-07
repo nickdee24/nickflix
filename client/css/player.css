@@ -93,7 +93,7 @@
 
 .countdown {
   font-size: 8rem; font-weight: 900; color: #fff; line-height: 1;
-  text-shadow: 0 10px 40px rgba(59,158,255,.6);
+  text-shadow: 0 10px 40px rgba(219,32,44,.6);
   animation: count-pop 1s var(--ease-out) both;
 }
 @keyframes count-pop { 0% { opacity: 0; transform: scale(1.6); } 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.85); } }
@@ -149,10 +149,10 @@ input[type=range].slider::-moz-range-thumb { width: 14px; height: 14px; border-r
 .seek .buffered, .seek .downloaded, .seek .played { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; }
 .seek .downloaded { background: rgba(76,175,80,.35); }   /* torrent pieces we have */
 .seek .buffered { background: rgba(255,255,255,.32); }
-.seek .played { background: var(--accent); box-shadow: 0 0 12px rgba(59,158,255,.55); }
+.seek .played { background: var(--accent); box-shadow: 0 0 12px rgba(219,32,44,.55); }
 .seek .knob {
   position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
-  background: #fff; box-shadow: 0 0 0 4px rgba(59,158,255,.35), 0 2px 6px rgba(0,0,0,.5);
+  background: #fff; box-shadow: 0 0 0 4px rgba(219,32,44,.35), 0 2px 6px rgba(0,0,0,.5);
   transform: scale(0); transition: transform var(--t-fast) var(--ease);
 }
 .seek:hover .knob, .seek.dragging .knob { transform: scale(1); }
