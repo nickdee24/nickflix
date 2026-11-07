@@ -64,13 +64,14 @@ app.use('/api', createApi({ screen, hostLink }))
 app.use('/vendor/videojs', express.static(path.join(ROOT, 'node_modules/video.js/dist'), { maxAge: '7d' }))
 app.use('/vendor/hls', express.static(path.join(ROOT, 'node_modules/hls.js/dist'), { maxAge: '7d' }))
 
+// Site files are always revalidated (cheap 304s via ETag), so a new deploy
+// shows up on the next page load instead of after the browser cache expires.
 app.use(express.static(CLIENT, {
-  maxAge: config.isProd ? '1h' : 0,
-  setHeaders: (res, file) => { if (file.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache') }
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
 }))
 
 // SPA fallback: /, /settings, old /room/… links all serve the app shell.
-app.get(/^\/(?!api|socket\.io|vendor).*/, (req, res) => res.sendFile(path.join(CLIENT, 'index.html')))
+app.get(/^\/(?!api|socket\.io|vendor).*/, (req, res) => { res.setHeader('Cache-Control', 'no-cache'); res.sendFile(path.join(CLIENT, 'index.html')) })
 
 server.listen(config.port, config.host, () => {
   console.log(`\n  ▶ NickFlix running at http://localhost:${config.port}`)
