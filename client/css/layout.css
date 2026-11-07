@@ -54,7 +54,7 @@
 .nav-tile svg { width: 22px; height: 22px; }
 .nav-tile:hover { background: var(--raised); border-color: #444a54; }
 .nav-tile:active { transform: scale(0.96); }
-.nav-tile.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(59,158,255,.28); }
+.nav-tile.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(219,32,44,.28); }
 .nav-tile .badge-dot {
   position: absolute; top: 8px; right: 10px; width: 8px; height: 8px; border-radius: 50%;
   background: var(--ok); box-shadow: 0 0 0 3px rgba(76,175,80,.25);
@@ -70,6 +70,8 @@
 .topbar .title { display: flex; align-items: center; gap: 10px; font-size: 1.35rem; font-weight: 700; color: var(--text-strong); min-width: 0; }
 .topbar .title svg { width: 28px; height: 28px; color: var(--accent); flex-shrink: 0; }
 .topbar .title small { font-weight: 600; color: var(--muted); font-size: 1rem; }
+.topbar .wordmark { display: flex; align-items: center; flex-shrink: 0; padding-right: 12px; margin-right: 2px; border-right: 1px solid var(--line); }
+.topbar .wordmark img { height: 26px; width: auto; display: block; }
 .topbar .actions { margin-left: auto; display: flex; gap: 8px; }
 
 .view {

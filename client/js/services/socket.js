@@ -36,6 +36,12 @@ class SocketService extends Emitter {
     })
   }
 
+  /** Resolves once the socket is connected (immediately if it already is). */
+  whenConnected () {
+    if (this.io.connected) return Promise.resolve()
+    return new Promise((resolve) => this.io.once('connect', () => resolve()))
+  }
+
   send (event, payload) { this.io.emit(event, payload) }
   listen (event, fn) { this.io.on(event, fn); return () => this.io.off(event, fn) }
 

@@ -1,0 +1,16 @@
+{
+  "name": "nickflix-host",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Runs on your PC: serves movies from your folder to Screen 1 as adaptive HLS.",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

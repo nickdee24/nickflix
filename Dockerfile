@@ -1,9 +1,6 @@
-# NickFlix — Node 22 + ffmpeg (for compatibility mode: MKV/AVI/HEVC → browser-friendly MP4)
+# NickFlix website — Node 22. (No ffmpeg needed here: video is encoded and
+# served by NickFlix Host on your own PC.)
 FROM node:22-bookworm-slim
-
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
- && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 ENV NODE_ENV=production

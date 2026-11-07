@@ -2,19 +2,18 @@
  * PlayerView — the premium player UI.
  *
  * Usage:
- *   const pv = new PlayerView({ title, badges, torrentSubs, controller })
+ *   const pv = new PlayerView({ title, badges, subtitles, controller })
  *   container.append(pv.el)
  *   await pv.load(media, { startAt, autoplay })
  *
- * `controller` decides what a user action *means*. Solo viewing calls the
- * engine directly; in a watch room the SyncService sends the intent to the
- * server and the authoritative state comes back to every client.
+ * `controller` decides what a user action *means*. On Screen 1 the RoomSync
+ * sends the intent to the server and the authoritative state comes back to
+ * every viewer.
  */
 import { h, Emitter, Disposer } from '../lib/dom.js'
 import { icon } from '../lib/icons.js'
-import { clock, speed as fmtSpeed } from '../lib/format.js'
+import { clock } from '../lib/format.js'
 import { settings } from '../state/store.js'
-import { api } from '../services/api.js'
 import { parseSubtitles } from '../services/subtitles.js'
 import { Thumbnailer } from '../services/thumbnails.js'
 import { PlayerEngine } from './engine.js'
@@ -25,11 +24,11 @@ const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 const SUB_SIZES = [{ v: 1.2, l: 'Small' }, { v: 1.6, l: 'Medium' }, { v: 2.1, l: 'Large' }, { v: 2.7, l: 'Huge' }]
 
 export class PlayerView extends Emitter {
-  constructor ({ title = '', badges = [], torrentSubs = [], controller = null, extraTop = null } = {}) {
+  constructor ({ title = '', badges = [], subtitles = [], controller = null, extraTop = null } = {}) {
     super()
     this.d = new Disposer()
-    this.torrentSubs = torrentSubs
-    this.stats = null
+    this.remoteSubs = subtitles // [{ label, lang, ext, url }] offered by the host PC
+    this.net = null
     this.menu = null
     this.dragging = false
     this.hideTimer = null
@@ -49,6 +48,7 @@ export class PlayerView extends Emitter {
     this.#wireInput()
     this.#applySubSize()
     this.d.add(settings.on('change:subtitleSize', () => this.#applySubSize()))
+    this.ticks = 0
     this.d.interval(() => this.#tick(), 250)
   }
 
@@ -115,7 +115,7 @@ export class PlayerView extends Emitter {
 
     this.overlay = h('div.player-overlay', this.topEl, this.centerEl, this.reactionLayer, this.controlsEl)
     this.el = h('div.player', { dataset: { state: 'idle', controls: 'shown' }, tabindex: -1 }, this.videoEl, this.overlay)
-    this.fileInput = h('input', { type: 'file', accept: '.srt,.vtt,.ass,.ssa', hidden: true, onchange: (e) => this.#loadSubFile(e.target.files[0]) })
+    this.fileInput = h('input', { type: 'file', accept: '.srt,.vtt,.ass,.ssa', hidden: true, onchange: (e) => this.loadSubtitleFile(e.target.files[0]) })
     this.el.append(this.fileInput)
   }
 
@@ -133,17 +133,18 @@ export class PlayerView extends Emitter {
     this.setState('loading')
     this.#clearCenter()
     this.#showBuffering(true)
-    await this.engine.load(media, opts)
-    this.thumbs.configure({ infoHash: media.infoHash, fileIndex: media.fileIndex, mode: this.engine.mode })
+    this.thumbs.configure({ thumbUrl: media.thumbUrl })
+    this.engine.load(media, opts)
     this.#autoSubtitle()
   }
 
-  /** Automatically pick an English (or the only) subtitle shipped with the torrent. */
+  /** Subtitles start off, but the best English track is pre-loaded so C turns it on instantly. */
   async #autoSubtitle () {
-    if (!this.torrentSubs.length || this.autoSubTried) return
+    if (!this.remoteSubs.length || this.autoSubTried) return
     this.autoSubTried = true
-    const pick = this.torrentSubs.find((s) => /eng|english|\.en\./i.test(s.name)) || (this.torrentSubs.length === 1 ? this.torrentSubs[0] : null)
-    if (pick) this.#loadTorrentSub(pick, true)
+    const full = this.remoteSubs.filter((s) => !/forced/i.test(s.label))
+    const pick = full.find((s) => /^en/i.test(s.lang || '') || /eng|english/i.test(s.label)) || (full.length === 1 ? full[0] : null)
+    if (pick) await this.#loadRemoteSub(pick, { quiet: true, show: false })
   }
 
   // ================================================================== engine → UI
@@ -158,10 +159,7 @@ export class PlayerView extends Emitter {
       if (e.paused()) this.setState('ready')
       this.emit('loaded')
     })
-    e.on('modechange', ({ mode }) => {
-      this.thumbs.configure({ infoHash: this.media.infoHash, fileIndex: this.media.fileIndex, mode })
-      this.qualityBtn.classList.toggle('on', mode === 'compat')
-    })
+    e.on('levelchange', () => this.#updateNet())
     e.on('volumechange', ({ volume, muted }) => {
       const v = muted ? 0 : volume
       this.volSlider.value = v
@@ -204,22 +202,24 @@ export class PlayerView extends Emitter {
     const r = e.bufferedRanges().find(([a, b]) => t >= a - 1 && t <= b + 1)
     this.bufferedEl.style.left = r && dur ? `${(r[0] / dur) * 100}%` : '0'
     this.bufferedEl.style.width = r && dur ? `${((r[1] - r[0]) / dur) * 100}%` : '0'
-    if (this.bufferMeta && this.stats) this.bufferMeta.textContent = this.#netLine()
+    if (++this.ticks % 4 === 0) this.#updateNet()
   }
 
-  /** Live torrent stats (from the socket) feed the network chip and buffering card. */
-  setStats (s) {
-    this.stats = s
-    const live = s.peers > 0
-    this.netChip.className = `chip sm ${live ? 'live' : 'warn'}`
-    this.netChip.lastChild.textContent = this.#netLine()
+  /** Quality + measured connection speed → the chip in the corner and the buffering card. */
+  #updateNet () {
+    const n = this.engine.levelInfo()
+    this.net = n
+    const line = this.#netLine()
+    this.netChip.className = `chip sm ${n.height ? 'live' : 'info'}`
+    this.netChip.lastChild.textContent = line
+    if (this.bufferMeta) this.bufferMeta.textContent = line
   }
 
   #netLine () {
-    const s = this.stats
-    if (!s) return 'Connecting to peers…'
-    const sp = fmtSpeed(s.downloadSpeed)
-    return `${s.peers} peer${s.peers === 1 ? '' : 's'} · ${sp.value} ${sp.unit}`
+    const n = this.net
+    if (!n || !n.height) return 'Connecting to the host PC…'
+    const mbps = n.bandwidth ? ` · ${(n.bandwidth / 1e6).toFixed(n.bandwidth < 1e7 ? 1 : 0)} Mbps` : ''
+    return `${n.name || `${n.height}p`}${n.auto ? '' : ' (fixed)'}${mbps}`
   }
 
   // ================================================================== centre overlays
@@ -228,7 +228,7 @@ export class PlayerView extends Emitter {
   #showBuffering (on) {
     if (on && !this.bufferCard && !this.errorShown) {
       this.bufferMeta = h('div.b-meta', this.#netLine())
-      this.bufferCard = h('div.buffering', h('div.spinner'), h('div.b-title', this.engine.mode === 'compat' ? 'Preparing video…' : 'Buffering…'), this.bufferMeta)
+      this.bufferCard = h('div.buffering', h('div.spinner'), h('div.b-title', 'Buffering…'), this.bufferMeta)
       this.centerEl.append(this.bufferCard)
     } else if (!on && this.bufferCard) {
       this.bufferCard.remove()
@@ -277,7 +277,7 @@ export class PlayerView extends Emitter {
 
   // ================================================================== actions
   togglePlay () {
-    if (!this.controller.canControl()) return toast('The host is controlling playback.', 'info')
+    if (!this.controller.canControl()) return toast('The host has locked playback controls.', 'info')
     if (this.engine.paused()) this.controller.play(this.engine.time())
     else this.controller.pause(this.engine.time())
   }
@@ -285,13 +285,13 @@ export class PlayerView extends Emitter {
   skip (s) { this.seekTo(this.engine.time() + s) }
 
   seekTo (t) {
-    if (!this.controller.canControl()) return toast('The host is controlling playback.', 'info')
+    if (!this.controller.canControl()) return toast('The host has locked playback controls.', 'info')
     const d = this.engine.duration()
     this.controller.seek(Math.max(0, d ? Math.min(t, d - 0.5) : t))
   }
 
   setRate (r) {
-    if (!this.controller.canControl()) return toast('The host is controlling playback.', 'info')
+    if (!this.controller.canControl()) return toast('The host has locked playback controls.', 'info')
     this.controller.setRate(r)
   }
 
@@ -385,7 +385,7 @@ export class PlayerView extends Emitter {
     }
     this.d.listen(el, 'pointermove', (e) => { preview(e.clientX); if (this.dragging) this.dragTime = timeAt(e.clientX).t })
     this.d.listen(el, 'pointerdown', (e) => {
-      if (!this.controller.canControl()) return toast('The host is controlling playback.', 'info')
+      if (!this.controller.canControl()) return toast('The host has locked playback controls.', 'info')
       el.setPointerCapture(e.pointerId)
       this.dragging = true
       this.dragTime = timeAt(e.clientX).t
@@ -473,9 +473,8 @@ export class PlayerView extends Emitter {
       const cur = this.engine.currentQualityId()
       const opts = this.engine.qualityOptions()
       content = [h('h4', 'Quality'), ...opts.map((o) => item(o.label, o.id === cur, () => {
-        if (o.id !== cur) { toast(o.id === 'direct' ? 'Switching to direct play' : `Switching to ${o.label} (${o.hint.toLowerCase()})`, 'info', 2200); this.engine.setQuality(o.id) }
+        if (o.id !== cur) { toast(o.id === 'auto' ? 'Quality: automatic' : `Quality: ${o.label}`, 'info', 1800); this.engine.setQuality(o.id) }
       }, o.hint))]
-      if (opts.length === 1) content.push(h('h4', 'Server has no ffmpeg — direct only'))
     }
     if (kind === 'subs') {
       const list = this.engine.listSubtitles()
@@ -484,7 +483,7 @@ export class PlayerView extends Emitter {
         h('h4', 'Subtitles'),
         item('Off', !cur, () => this.engine.selectSubtitle(null)),
         ...list.map((s) => item(s.label, s.id === cur, () => this.engine.selectSubtitle(s.id))),
-        ...this.torrentSubs.filter((s) => !list.some((l) => l.label === s.name)).map((s) => item(s.name, false, () => this.#loadTorrentSub(s), 'In torrent')),
+        ...this.remoteSubs.filter((s) => !list.some((l) => l.label === s.label)).map((s) => item(s.label, false, () => this.#loadRemoteSub(s), 'From host')),
         h('button', { onclick: () => { this.fileInput.click(); this.#closeMenu() } }, icon('upload', 'check'), h('span', 'Load from your device…')),
         h('h4', 'Size'),
         ...SUB_SIZES.map((s) => item(s.l, settings.get('subtitleSize') === s.v, () => settings.set('subtitleSize', s.v)))
@@ -503,20 +502,22 @@ export class PlayerView extends Emitter {
   #closeMenu () { this.menu?.remove(); this.menu = null; this.#scheduleHide() }
 
   // ================================================================== subtitles
-  async #loadTorrentSub (s, quiet = false) {
+  async #loadRemoteSub (s, { quiet = false, show = true } = {}) {
     try {
-      const res = await fetch(api.streamUrl(this.media.infoHash, s.index))
-      const text = await res.text()
-      const cues = parseSubtitles(text, s.ext)
+      const res = await fetch(s.url)
+      if (!res.ok) throw new Error(String(res.status))
+      const cues = parseSubtitles(await res.text(), s.ext)
       if (!cues.length) throw new Error('empty')
-      this.engine.addSubtitle({ label: s.name.split('/').pop(), cues })
-      if (!quiet) toast('Subtitles loaded', 'success', 1800)
+      const prev = this.engine.activeSub
+      this.engine.addSubtitle({ label: s.label, lang: s.lang || 'en', cues })
+      if (!show) this.engine.selectSubtitle(prev)
+      if (!quiet) toast('Subtitles on', 'success', 1600)
     } catch {
       if (!quiet) toast('Couldn\'t read that subtitle file.', 'danger')
     }
   }
 
-  async #loadSubFile (file) {
+  async loadSubtitleFile (file) {
     if (!file) return
     try {
       const cues = parseSubtitles(await file.text(), file.name.split('.').pop().toLowerCase())

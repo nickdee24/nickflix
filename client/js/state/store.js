@@ -1,10 +1,9 @@
 /**
  * Persistent client state (localStorage, always wrapped in try/catch so
  * private windows still work).
- *   identity  — username + a secret clientKey (server derives your public id from it)
+ *   identity  — username, a secret clientKey (the server derives your public id
+ *               from it) and, on the host's own browser, the host key
  *   settings  — user preferences
- *   history   — "continue watching"
- *   recentRooms
  */
 import { Emitter } from '../lib/dom.js'
 
@@ -27,7 +26,9 @@ export const identity = {
   },
   get username () { return this.get().username },
   set username (name) { write('identity', { ...this.get(), username: String(name || '').trim().slice(0, 24) }) },
-  get clientKey () { return this.get().clientKey }
+  get clientKey () { return this.get().clientKey },
+  get hostKey () { return this.get().hostKey || '' },
+  set hostKey (key) { write('identity', { ...this.get(), hostKey: String(key || '').trim().slice(0, 200) }) }
 }
 
 // ------------------------------------------------------------------ settings
@@ -35,13 +36,10 @@ const DEFAULTS = {
   volume: 0.9,
   muted: false,
   subtitleSize: 1.6,         // em multiplier
-  preferredQuality: 'auto',  // auto | original | 1080 | 720 | 480
-  autoCompat: true,          // fall back to compatibility mode when the browser can't decode
+  maxQuality: 0,             // 0 = no cap; otherwise highest height Auto may pick (data saver)
   syncTolerance: 1.5,        // seconds of drift before a hard seek
   showDrift: true,
-  speedUnits: 'bytes',       // bytes | bits
-  reduceMotion: false,
-  autoplaySolo: true
+  reduceMotion: false
 }
 
 class Settings extends Emitter {
@@ -57,28 +55,3 @@ class Settings extends Emitter {
   reset () { this.#v = { ...DEFAULTS }; write('settings', this.#v); this.emit('change') }
 }
 export const settings = new Settings()
-
-// ------------------------------------------------------------------ history
-export const history = {
-  list () { return read('history', []) },
-  /** Upsert by infoHash+fileIndex. */
-  save (entry) {
-    const list = this.list().filter((e) => !(e.infoHash === entry.infoHash && e.fileIndex === entry.fileIndex))
-    list.unshift({ ...entry, at: Date.now() })
-    write('history', list.slice(0, 24))
-  },
-  get (infoHash, fileIndex) { return this.list().find((e) => e.infoHash === infoHash && e.fileIndex === fileIndex) },
-  remove (infoHash, fileIndex) { write('history', this.list().filter((e) => !(e.infoHash === infoHash && e.fileIndex === fileIndex))) },
-  clear () { write('history', []) }
-}
-
-// ------------------------------------------------------------------ recent rooms
-export const recentRooms = {
-  list () { return read('rooms', []) },
-  save (room) {
-    const list = this.list().filter((r) => r.id !== room.id)
-    list.unshift({ id: room.id, name: room.name, at: Date.now() })
-    write('rooms', list.slice(0, 12))
-  },
-  remove (id) { write('rooms', this.list().filter((r) => r.id !== id)) }
-}
