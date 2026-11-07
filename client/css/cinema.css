@@ -51,24 +51,28 @@
 /* Back wall around the screen */
 .cin-back { position: absolute; left: var(--wall-in); right: var(--wall-in); top: var(--screen-top); bottom: calc(100% - var(--screen-bottom) - 6%); background: linear-gradient(#0a0b0d, #050506); }
 
+/* Very dark crimson walls: the colour comes from the light pools, not the paint. */
 .cin-wall {
   position: absolute; inset: 0;
   background:
     linear-gradient(180deg, transparent 0 74%, rgba(0, 0, 0, .55) 80%, rgba(0, 0, 0, .85) 100%),
-    linear-gradient(90deg, #2a0306 0%, #220205 45%, #140103 100%);
+    radial-gradient(70% 26% at 30% 70%, rgba(170, 10, 22, .45), transparent 75%),
+    linear-gradient(90deg, #1c0206 0%, #130104 45%, #080102 100%);
 }
 .cin-wall.left { clip-path: polygon(0 0, var(--wall-in) var(--screen-top), var(--wall-in) calc(var(--screen-bottom) + 6%), 0 82%); }
 .cin-wall.right { clip-path: polygon(100% 0, calc(100% - var(--wall-in)) var(--screen-top), calc(100% - var(--wall-in)) calc(var(--screen-bottom) + 6%), 100% 82%);
   background:
     linear-gradient(180deg, transparent 0 74%, rgba(0, 0, 0, .55) 80%, rgba(0, 0, 0, .85) 100%),
-    linear-gradient(270deg, #2a0306 0%, #220205 45%, #140103 100%); }
+    radial-gradient(70% 26% at 70% 70%, rgba(170, 10, 22, .45), transparent 75%),
+    linear-gradient(270deg, #1c0206 0%, #130104 45%, #080102 100%); }
 /* Walls fall into shadow when the lights go down (on top of the room darkness) */
 .cin-wall::after {
   content: ""; position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none;
   transition: opacity var(--lights-dur) ease var(--lights-delay);
 }
 
-/* Spot lights along the top of each wall, each throwing a bright red wash down the wall */
+/* Spot lights along the top of each wall, each throwing a tight red beam down
+   the wall that fades into the dark (like a real auditorium wall wash). */
 .sconce {
   position: absolute; width: calc(var(--s) * .55%); aspect-ratio: 1; border-radius: 50%;
   transform: translate(-50%, -50%);
@@ -78,12 +82,12 @@
 }
 .sconce::after {
   content: ""; position: absolute; left: 50%; top: 40%;
-  width: 900%; height: 2800%; transform: translateX(-50%);
+  width: 520%; height: 2800%; transform: translateX(-50%);
   background:
-    radial-gradient(18% 14% at 50% 3%, rgba(255, 80, 80, .9), rgba(225, 20, 32, .55) 55%, transparent 85%),
-    radial-gradient(40% 44% at 50% 0%, rgba(190, 10, 22, .5), rgba(120, 5, 14, .2) 55%, transparent 85%);
-  -webkit-mask-image: linear-gradient(#000 55%, transparent 92%);
-  mask-image: linear-gradient(#000 55%, transparent 92%);
+    radial-gradient(26% 12% at 50% 1%, rgba(255, 120, 110, .8), transparent 70%),
+    radial-gradient(44% 55% at 50% 0%, rgba(240, 22, 36, .95), rgba(160, 8, 20, .42) 48%, transparent 80%);
+  -webkit-mask-image: linear-gradient(#000 50%, transparent 90%);
+  mask-image: linear-gradient(#000 50%, transparent 90%);
   pointer-events: none;
 }
 
