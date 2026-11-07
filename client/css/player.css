@@ -137,6 +137,15 @@
 .volume { display: flex; align-items: center; }
 .volume input[type=range] { width: 0; opacity: 0; transition: width var(--t-med) var(--ease), opacity var(--t-med); }
 .volume:hover input[type=range], .volume:focus-within input[type=range] { width: 90px; opacity: 1; margin-right: 6px; }
+/* Volume boost (VLC-style, up to 200%): a tick marks 100%, the boosted part glows amber. */
+.volume:hover input[type=range].boostable, .volume:focus-within input[type=range].boostable { width: 130px; }
+.volume input[type=range].slider.boostable { background:
+  linear-gradient(to right, transparent calc(50% - 1px), rgba(255,255,255,.55) calc(50% - 1px), rgba(255,255,255,.55) calc(50% + 1px), transparent calc(50% + 1px)),
+  linear-gradient(to right, var(--accent) var(--fill, 50%), #4a4f58 var(--fill, 50%)); }
+.volume input[type=range].slider.boost { background:
+  linear-gradient(to right, var(--accent) 50%, #f5a524 50%, #f5a524 var(--fill), #4a4f58 var(--fill)); }
+.vol-pct { font-size: 12px; font-weight: 600; color: #f5a524; margin-right: 6px; }
+.vol-pct:empty { display: none; }
 
 input[type=range].slider { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 4px; background: linear-gradient(to right, var(--accent) var(--fill, 50%), #4a4f58 var(--fill, 50%)); cursor: pointer; }
 input[type=range].slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: none; box-shadow: 0 1px 4px rgba(0,0,0,.5); }

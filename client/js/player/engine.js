@@ -14,6 +14,8 @@ import { Emitter } from '../lib/dom.js'
 import { settings } from '../state/store.js'
 import { cuesToVttUrl } from '../services/subtitles.js'
 
+export const MAX_VOLUME = 2
+
 export class PlayerEngine extends Emitter {
   constructor (videoEl) {
     super()
@@ -39,8 +41,20 @@ export class PlayerEngine extends Emitter {
     this.lastSourceChange = 0
 
     const v = this.vjs
-    v.volume(settings.get('volume'))
+    this.vol = Math.max(0, Math.min(MAX_VOLUME, Number(settings.get('volume')) || 0))
+    v.volume(Math.min(1, this.vol))
     v.muted(settings.get('muted'))
+    // A saved boost (>100%) needs Web Audio, which browsers only start after a
+    // click or key press, so switch it on at the first one.
+    if (this.vol > 1) {
+      const first = () => {
+        document.removeEventListener('pointerdown', first, true)
+        document.removeEventListener('keydown', first, true)
+        if (this.vol > 1 && this.maxVolume() > 1) this.#applyBoost()
+      }
+      document.addEventListener('pointerdown', first, true)
+      document.addEventListener('keydown', first, true)
+    }
 
     v.on('timeupdate', () => this.emit('timeupdate', this.time()))
     v.on('play', () => this.emit('play'))
@@ -48,9 +62,11 @@ export class PlayerEngine extends Emitter {
     v.on('ended', () => this.emit('ended'))
     v.on('ratechange', () => this.emit('ratechange', v.playbackRate()))
     v.on('volumechange', () => {
-      settings.set('volume', v.volume())
+      // The element only knows 0–1; keep our boosted value unless something else changed it.
+      if (v.volume() < 1 || this.vol < 1) this.vol = v.volume()
+      settings.set('volume', this.vol)
       settings.set('muted', v.muted())
-      this.emit('volumechange', { volume: v.volume(), muted: v.muted() })
+      this.emit('volumechange', { volume: this.vol, muted: v.muted() })
     })
     v.on('progress', () => this.emit('progress'))
     v.on(['waiting', 'stalled'], () => { if (!this.#hasDataAhead()) this.#setWaiting(true) })
@@ -116,6 +132,7 @@ export class PlayerEngine extends Emitter {
       hls.attachMedia(el)
     } else if (el.canPlayType('application/vnd.apple.mpegurl')) {
       this.native = true
+      if (this.vol > 1) this.vol = 1
       el.src = media.masterUrl
       el.load()
     } else {
@@ -182,8 +199,53 @@ export class PlayerEngine extends Emitter {
   /** Gentle catch-up rate used by the sync engine without announcing a "rate change". */
   nudgeRate (r) { const el = this.el(); if (el && Math.abs(el.playbackRate - r) > 0.001) el.playbackRate = r }
 
-  volume (v) { if (v === undefined) return this.vjs.volume(); this.vjs.volume(Math.max(0, Math.min(1, v))); if (v > 0) this.vjs.muted(false) }
+  /**
+   * Volume 0 … MAX_VOLUME (2 = 200%, like VLC). Up to 100% is the normal element
+   * volume; above that a Web Audio gain boosts it, with a limiter so loud
+   * scenes don't crackle.
+   */
+  volume (v) {
+    if (v === undefined) return this.vol
+    v = Math.round(Math.max(0, Math.min(this.maxVolume(), v)) * 100) / 100
+    this.vol = v
+    this.#applyBoost()
+    this.vjs.volume(Math.min(1, v))
+    if (v > 0) this.vjs.muted(false)
+    settings.set('volume', v)
+    this.emit('volumechange', { volume: v, muted: this.vjs.muted() })
+  }
+
   muted (m) { if (m === undefined) return this.vjs.muted(); this.vjs.muted(m) }
+
+  /** Safari's built-in HLS player can't be routed through Web Audio (cross-origin), so no boost there. */
+  maxVolume () { return this.native || !(window.AudioContext || window.webkitAudioContext) ? 1 : MAX_VOLUME }
+
+  #applyBoost () {
+    const gain = Math.max(1, this.vol || 0)
+    if (gain <= 1 && !this.audio) return // never touch Web Audio until someone actually boosts
+    try {
+      if (!this.audio) {
+        const Ctx = window.AudioContext || window.webkitAudioContext
+        const ctx = new Ctx()
+        const src = ctx.createMediaElementSource(this.el())
+        const g = ctx.createGain()
+        const lim = ctx.createDynamicsCompressor()
+        lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.25
+        src.connect(g).connect(lim).connect(ctx.destination)
+        this.audio = { ctx, g, lim }
+        // A suspended context would silence the video: resume on the next click/key if needed.
+        const wake = () => { if (ctx.state !== 'running') ctx.resume().catch(() => {}) }
+        for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, wake, { capture: true })
+        this.on('play', wake)
+      }
+      const { ctx, g, lim } = this.audio
+      if (ctx.state !== 'running') ctx.resume().catch(() => {})
+      g.gain.setTargetAtTime(gain, ctx.currentTime, 0.03)
+      lim.threshold.value = gain > 1 ? -2 : 0
+    } catch (e) {
+      console.warn('[volume boost unavailable]', e)
+    }
+  }
 
   /** Buffered ranges: [[start, end], …] */
   bufferedRanges () {
