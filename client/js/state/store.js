@@ -38,6 +38,7 @@ const DEFAULTS = {
   subtitleSize: 1.6,         // em multiplier
   maxQuality: 0,             // 0 = no cap; otherwise highest height Auto may pick (data saver)
   syncTolerance: 1.5,        // seconds of drift before a hard seek
+  presentsIntro: true,       // "NickFlix presents" + title card before a movie's first play
   showDrift: true,
   reduceMotion: false
 }

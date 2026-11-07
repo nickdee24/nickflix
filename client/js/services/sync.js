@@ -88,13 +88,17 @@ export class RoomSync extends Emitter {
     this.quietUntil = Date.now() + 1200
     clearTimeout(this.startTimer)
     clearTimeout(this.cdTimer)
+    this.pv.cancelPresents()
 
     if (state.playing && now < state.updatedAt) {
       // Scheduled start: hold, let the cinema intro run, then everyone presses play together.
       const wait = state.updatedAt - now
       e.pause()
       if (Math.abs(e.time() - state.position) > 0.3) this.#localSeek(state.position)
-      if (wait >= 4500) this.cdTimer = setTimeout(() => this.pv.countdown(Math.min(wait, 3000)), Math.max(0, wait - 3000))
+      // First play of the movie (or joining during it): opening titles. Otherwise a 3-2-1.
+      const firstStart = state.action === 'start' || (!state.action && state.position < 1)
+      if (firstStart && settings.get('presentsIntro') !== false) this.pv.presents(this.getRoom()?.media?.title, wait)
+      else if (wait >= 4500) this.cdTimer = setTimeout(() => this.pv.countdown(Math.min(wait, 3000)), Math.max(0, wait - 3000))
       this.startTimer = setTimeout(() => { e.setRate(state.rate); e.play() }, wait)
       this.emit('status', 'countdown')
       this.emit('scheduled', { wait, action: state.action })
@@ -188,6 +192,7 @@ export class RoomSync extends Emitter {
   destroy () {
     clearTimeout(this.startTimer)
     clearTimeout(this.cdTimer)
+    this.pv.cancelPresents()
     this.d.dispose()
   }
 }

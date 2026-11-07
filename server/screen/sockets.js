@@ -25,8 +25,12 @@ import { isHostKey } from '../host-link.js'
 import { bucket } from '../utils/rate-limit.js'
 
 const REACTIONS = new Set(['👍', '❤️', '😂', '😮'])
-/** First play of a movie: lights down → screen zooms in → fullscreen prompt → countdown. */
-const INTRO_MS = 10_000
+/**
+ * First play of a movie: lights down → screen zooms in → fullscreen prompt →
+ * "NickFlix presents" → the movie's title card → it starts. The last 8 s are
+ * the title cards (see PlayerView.presents on the client).
+ */
+const INTRO_MS = 18_000
 /** Resuming after a pause: a quicker lights-down + zoom-in. */
 const RESUME_MS = 3_500
 const ROOM = 'screen'

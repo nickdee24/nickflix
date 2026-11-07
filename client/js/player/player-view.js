@@ -21,6 +21,8 @@ import { toast } from '../components/toast.js'
 import { showShortcuts } from './shortcuts.js'
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
+/** Length of the opening titles; must match the .presents animations in player.css. */
+export const PRESENTS_MS = 8000
 const SUB_SIZES = [{ v: 1.2, l: 'Small' }, { v: 1.6, l: 'Medium' }, { v: 2.1, l: 'Large' }, { v: 2.7, l: 'Huge' }]
 
 export class PlayerView extends Emitter {
@@ -262,6 +264,37 @@ export class PlayerView extends Emitter {
     }
     show()
     this.cdTimer = setInterval(show, 1000)
+  }
+
+  /**
+   * Opening titles before a movie's first play: "NICKFLIX presents", then the
+   * movie's title card, then the picture. Runs for PRESENTS_MS and ends exactly
+   * when the movie starts. Joining part-way through picks it up mid-sequence
+   * (negative animation-delay), so everyone sees the same frame at the same time.
+   */
+  presents (title, msUntilStart) {
+    this.cancelPresents()
+    const into = Math.max(0, PRESENTS_MS - msUntilStart) // already elapsed, for late joiners
+    const start = () => {
+      const m = String(title || '').match(/^(.*?)\s*\((\d{4})\)\s*$/)
+      const name = m ? m[1] : String(title || '')
+      const year = m ? m[2] : ''
+      const el = h('div.presents', { 'aria-hidden': 'true', style: { '--into': `-${into}ms` } },
+        h('div.pr-card.pr-brand', h('div.pr-logo', 'NICKFLIX'), h('div.pr-sub', 'presents')),
+        h('div.pr-card.pr-title', h('div.pr-name', name), year ? h('div.pr-year', year) : null)
+      )
+      this.presentsEl = el
+      this.el.append(el)
+      this.presentsTimer = setTimeout(() => this.cancelPresents(), PRESENTS_MS - into + 400)
+    }
+    if (msUntilStart > PRESENTS_MS) this.presentsTimer = setTimeout(start, msUntilStart - PRESENTS_MS)
+    else start()
+  }
+
+  cancelPresents () {
+    clearTimeout(this.presentsTimer)
+    this.presentsEl?.remove()
+    this.presentsEl = null
   }
 
   // ================================================================== reactions
@@ -534,6 +567,7 @@ export class PlayerView extends Emitter {
 
   destroy () {
     clearInterval(this.cdTimer)
+    this.cancelPresents()
     clearTimeout(this.hideTimer)
     this.d.dispose()
     this.thumbs.dispose()

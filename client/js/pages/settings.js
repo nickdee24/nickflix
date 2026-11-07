@@ -64,7 +64,8 @@ export function settingsPage (params, shell) {
         h('div.panel-head', h('div', h('div.eyebrow', 'Playback'), h('h2', 'Player'))),
         select('maxQuality', 'Maximum quality', 'Auto picks the best quality your connection can handle without buffering. Set a cap to save data.',
           [[0, 'No limit (Auto)'], [1080, 'Up to 1080p'], [720, 'Up to 720p'], [480, 'Up to 480p'], [360, 'Up to 360p']], Number),
-        select('subtitleSize', 'Subtitle size', 'How big captions appear on screen.', [[1.2, 'Small'], [1.6, 'Medium'], [2.1, 'Large'], [2.7, 'Huge']], Number)
+        select('subtitleSize', 'Subtitle size', 'How big captions appear on screen.', [[1.2, 'Small'], [1.6, 'Medium'], [2.1, 'Large'], [2.7, 'Huge']], Number),
+        toggle('presentsIntro', 'Opening titles', 'Show "NickFlix presents" and the movie\'s title before it starts. Turn off for a plain 3-2-1.')
       ),
       h('section.panel',
         h('div.panel-head', h('div', h('div.eyebrow', 'Watching together'), h('h2', 'Sync'))),

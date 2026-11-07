@@ -98,6 +98,57 @@
 }
 @keyframes count-pop { 0% { opacity: 0; transform: scale(1.6); } 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.85); } }
 
+/* ---------- Opening titles: "NICKFLIX presents" → movie title → picture ----------
+   One 8.4 s timeline (8 s of titles + the fade into the first frame), kept in
+   step with PRESENTS_MS in player-view.js. --into is a negative delay so people
+   who join part-way see the same moment as everyone else. Sizes use container
+   units so it fits the small cinema screen and fullscreen alike. */
+.presents {
+  position: absolute; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  background: #000; pointer-events: none;
+  container-type: size;
+  animation: pr-bg 8.4s linear both; animation-delay: var(--into, 0ms);
+}
+.presents .pr-card {
+  grid-area: 1 / 1; text-align: center; opacity: 0;
+  animation: 8.4s ease-in-out both; animation-delay: var(--into, 0ms);
+}
+.presents .pr-brand { animation-name: pr-brand; }
+.presents .pr-title { animation-name: pr-title; padding: 0 8cqw; }
+.presents .pr-logo {
+  font-weight: 900; font-size: 11cqw; line-height: 1; letter-spacing: .14em; margin-right: -.14em;
+  color: #db202c; text-shadow: 0 0 6cqw rgba(219, 32, 44, .35);
+}
+.presents .pr-sub {
+  margin-top: 1.6cqw; font-size: 2.4cqw; letter-spacing: .6em; margin-right: -.6em;
+  text-transform: uppercase; color: #bfc4cc;
+}
+.presents .pr-name {
+  font-family: "Trajan Pro", Cinzel, "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  font-weight: 400; font-size: 7cqw; line-height: 1.1; letter-spacing: .1em; text-transform: uppercase;
+  color: #f4f1ea; text-shadow: 0 0 4cqw rgba(255, 240, 200, .18);
+}
+.presents .pr-year { margin-top: 1.8cqw; font-size: 2.2cqw; letter-spacing: .5em; margin-right: -.5em; color: #9aa0a8; }
+/* backdrop: in 0–0.6 s, hold, then fade into the movie's first frame (7.6–8.4 s) */
+@keyframes pr-bg { 0% { opacity: 0; } 7% { opacity: 1; } 90% { opacity: 1; } 100% { opacity: 0; } }
+/* "NICKFLIX presents": about 0.8 s → 3.8 s */
+@keyframes pr-brand {
+  0%, 9.5% { opacity: 0; transform: scale(.96); }
+  17% { opacity: 1; transform: scale(1); }
+  38% { opacity: 1; transform: scale(1.02); }
+  45%, 100% { opacity: 0; transform: scale(1.03); }
+}
+/* the title card: about 4.2 s → 7.5 s */
+@keyframes pr-title {
+  0%, 50% { opacity: 0; }
+  58%, 83% { opacity: 1; }
+  89%, 100% { opacity: 0; }
+}
+/* the title slowly opens up while it's on screen */
+.presents .pr-name { animation: pr-spread 8.4s linear both; animation-delay: var(--into, 0ms); }
+@keyframes pr-spread { 0%, 50% { letter-spacing: .06em; } 89%, 100% { letter-spacing: .14em; } }
+
 /* ---------- Bottom controls ---------- */
 .controls {
   position: absolute; left: 14px; right: 14px; bottom: 14px; z-index: 3;

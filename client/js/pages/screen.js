@@ -15,7 +15,7 @@ import { identity, settings } from '../state/store.js'
 import { api } from '../services/api.js'
 import { socket } from '../services/socket.js'
 import { RoomSync } from '../services/sync.js'
-import { PlayerView } from '../player/player-view.js'
+import { PlayerView, PRESENTS_MS } from '../player/player-view.js'
 import { avatar } from '../components/avatar.js'
 import { toast } from '../components/toast.js'
 import { askUsername } from '../components/username.js'
@@ -440,20 +440,25 @@ export function screenPage (params, shell) {
     S.introEndTimer = setTimeout(() => cinema.el.classList.remove('intro'), wait)
     S.introTimer = setTimeout(() => cinema.set('playing', { lights: 0.6, zoom }, true), lights * 1000)
     if (first && S.pv && !document.fullscreenElement) {
-      S.promptTimer = setTimeout(() => openPrompt(wait - (lights + zoom) * 1000), (lights + zoom) * 1000)
+      // The prompt has to be gone before the opening titles begin.
+      const titles = settings.get('presentsIntro') !== false ? PRESENTS_MS : 0
+      const at = (lights + zoom) * 1000
+      S.promptTimer = setTimeout(() => openPrompt(wait - at - titles, wait - at), at)
     }
   }
 
-  function openPrompt (ms) {
+  /** `ms`: how long the prompt stays up; `startsIn`: when the movie actually starts. */
+  function openPrompt (ms, startsIn = ms) {
     closePrompt()
     const pv = S.pv
     if (!pv || ms < 1500) return
-    const until = Date.now() + ms
+    const closeAt = Date.now() + ms
+    const startAt = Date.now() + startsIn
     const left = h('p', '')
     const tick = () => {
-      const n = Math.max(0, Math.ceil((until - Date.now()) / 1000))
+      const n = Math.max(0, Math.ceil((startAt - Date.now()) / 1000))
       left.textContent = n ? `The movie starts in ${n}…` : 'Starting…'
-      if (!n) closePrompt()
+      if (Date.now() >= closeAt) closePrompt()
     }
     const box = h('div.fs-prompt', { onclick: (e) => e.stopPropagation() },
       h('h3', 'Go fullscreen?'),
