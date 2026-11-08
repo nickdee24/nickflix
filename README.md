@@ -56,6 +56,10 @@ On the site, open **Settings → Host key** and paste the same secret. That brow
 
 Open Screen 1, drag a movie from your movie folder onto the screen, and share the link. Browsers don't reveal where a dragged file lives, so the host app finds it in your folder by name and size. Files have to be in the movie folder.
 
+### Letting a friend host instead
+
+Send them **`host/NickFlix Host Setup.bat`** (just that one file). When they double-click it, it installs Node.js and ffmpeg, downloads NickFlix Host into `%USERPROFILE%\NickFlix Host`, asks for the host secret and opens a folder picker for their movies, adds a **NickFlix Host** shortcut to the desktop, and starts it. Running it again later updates the app and keeps their settings. Only one host can be connected at a time; the newest one takes over.
+
 ## Host app settings (`host/config.json`)
 
 | key | default | |
