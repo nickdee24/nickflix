@@ -1,0 +1,73 @@
+# Builds the Android / Fire TV app whenever android/ changes on main and
+# publishes it to the "app" release. Installed apps read version.json from
+# that release and offer the update.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_B64       the signing keystore, base64-encoded
+#   ANDROID_KEYSTORE_PASSWORD  its password
+# Every version must be signed with the same keystore, or Android refuses to
+# install the update over the old copy.
+name: Android app
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android-app.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-app
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq aapt apksigner zipalign dalvik-exchange
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Add the ANDROID_KEYSTORE_B64 and ANDROID_KEYSTORE_PASSWORD secrets (see the top of this file)."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > android/nickflix-release.jks
+
+      - name: Build
+        working-directory: android
+        env:
+          KEYPASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          # 100+ keeps every automatic build newer than the hand-built 1.0 and 1.1.
+          export VERSION_CODE=$((100 + VERSION_CODE))
+          export VERSION_NAME="1.$VERSION_CODE"
+          JAR=$(ls -d "$ANDROID_HOME"/platforms/android-3[4-9]*/android.jar | sort -V | head -1)
+          ANDROID_JAR="$JAR" ./build.sh
+          NOTES=$(git log -1 --pretty=%s -- . | head -c 200)
+          python3 - "$VERSION_CODE" "$VERSION_NAME" "$NOTES" <<'PY' > version.json
+          import json, sys
+          print(json.dumps({"versionCode": int(sys.argv[1]), "versionName": sys.argv[2], "notes": sys.argv[3]}))
+          PY
+          cat version.json
+
+      - name: Publish
+        working-directory: android
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view app >/dev/null 2>&1 || gh release create app --title "NickFlix app" \
+            --notes "The latest NickFlix app for Android and Fire TV. Download NickFlix.apk to install it; installed apps update themselves from here."
+          # The APK goes up first, so version.json never points at an older file.
+          gh release upload app NickFlix.apk --clobber
+          gh release upload app version.json --clobber

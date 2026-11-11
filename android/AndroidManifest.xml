@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Lets the app hand its own updates to the installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Runs on phones, tablets, Fire TV and Android TV -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -31,5 +33,19 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Gives the installer read access to the downloaded update, and nothing else -->
+        <provider
+            android:name=".UpdateProvider"
+            android:authorities="com.nickflix.app.update"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <!-- Reopens the app after an update (older Android / Fire OS) -->
+        <receiver android:name=".UpdatedReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
