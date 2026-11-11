@@ -10,7 +10,7 @@ const SHORTCUTS = [
   ['Mute', ['M']],
   ['Fullscreen', ['F']],
   ['Picture in picture', ['P']],
-  ['Theatre mode', ['T']],
+  ['Cinema view (fill the window)', ['T']],
   ['Cycle subtitles', ['C']],
   ['Speed down / up', ['<', '>']],
   ['Jump to 0–90%', ['0', '…', '9']],

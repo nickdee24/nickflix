@@ -210,30 +210,50 @@ html[data-motion="reduced"] .cin-screen, html[data-motion="reduced"] .cin-seats 
 .cinema.intro .big-play { opacity: 0; pointer-events: none; }
 .cinema .player:has(.fs-prompt) .countdown { display: none; }
 
-/* ---------- theatre mode ----------
-   The cinema moves to the middle of the window above a near-black backdrop
-   that covers the rest of the site. Clicking the backdrop turns it off. */
-.theatre-backdrop {
-  position: fixed; inset: 0; z-index: 90;
-  background: rgba(0, 0, 0, .965);
-  cursor: pointer;
-  animation: theatre-in .6s ease both;
-}
-@keyframes theatre-in { from { opacity: 0; } }
+/* ---------- cinema view (theatre mode) ----------
+   The auditorium fills the whole window, edge to edge, above the rest of the
+   site. The room is drawn in percentages, so it stretches to any window shape
+   and the picture stays where the cinema screen is. */
 .cinema.theatre {
-  position: fixed; z-index: 91;
-  left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(96vw, calc(92dvh * 16 / 9)); max-width: none;
-  margin: 0;
-  box-shadow: 0 0 120px rgba(0, 0, 0, .9);
+  position: fixed; z-index: 91; inset: 0;
+  width: 100vw; height: 100vh; height: 100dvh; max-width: none;
+  margin: 0; aspect-ratio: auto;
+  border-radius: 0; box-shadow: none;
 }
 .cinema.theatre .player.theatre { max-height: none; }
-@media (max-width: 960px) {
-  .cinema.theatre { width: 100vw; border-radius: 0; }
+.cinema.theatre[data-scene="playing"] .cin-screen .player,
+.cinema.theatre[data-scene="playing"] .cin-screen .stage { border-radius: 0; }
+/* Upright phones: keep a 16:9 room across the middle, black above and below. */
+@media (orientation: portrait) {
+  .cinema.theatre {
+    inset: auto 0; top: 50%; height: auto; aspect-ratio: 16 / 9;
+    transform: translateY(-50%);
+    box-shadow: 0 0 0 100vmax #000;
+  }
 }
 /* The page's entry animation leaves a transform behind, which would pin the
    fixed-position cinema to the page instead of the window. */
 html.theatre-on .page { animation: none; transform: none; }
+html.theatre-on, html.theatre-on body { overflow: hidden; }
+
+/* Corner button: into / out of cinema view. It steps aside while the picture
+   fills the room (the player has its own button and the T key). */
+.cin-view-btn {
+  position: absolute; top: 14px; right: 14px; z-index: 3;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(10, 10, 12, .55); color: #e9e6e1;
+  font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  opacity: .7;
+  transition: opacity .25s ease, background .2s ease;
+}
+.cin-view-btn svg { width: 16px; height: 16px; }
+.cin-view-btn:hover, .cin-view-btn:focus-visible { opacity: 1; background: rgba(219, 32, 44, .85); }
+.cinema[data-scene="playing"] .cin-view-btn,
+.cinema[data-scene="dimming"] .cin-view-btn { opacity: 0; pointer-events: none; }
+@media (max-width: 640px) { .cin-view-btn span { display: none; } .cin-view-btn { padding: 8px; } }
 
 /* ---------- opening titles ----------
    "NICKFLIX presents", then the movie's name, over black, ending as the
@@ -269,3 +289,7 @@ html.theatre-on .page { animation: none; transform: none; }
 /* The 3-2-1 makes way for the titles */
 .cinema .player:has(.title-card) .countdown,
 .cinema .player:has(.title-card) .big-play { display: none; }
+
+/* Shown only while in cinema view */
+.only-theatre { display: none; }
+.cinema.theatre .only-theatre { display: inline-flex; margin-top: 14px; }
