@@ -70,6 +70,10 @@ app.use(express.static(CLIENT, {
   setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
 }))
 
+// Short link to the latest Android / Fire TV app, easy to type on a TV:
+// nickflix.onrender.com/app
+app.get(['/app', '/apk'], (req, res) => res.redirect(302, 'https://github.com/nickdee24/nickflix/releases/download/app/NickFlix.apk'))
+
 // SPA fallback: /, /settings, old /room/… links all serve the app shell.
 app.get(/^\/(?!api|socket\.io|vendor).*/, (req, res) => { res.setHeader('Cache-Control', 'no-cache'); res.sendFile(path.join(CLIENT, 'index.html')) })
 
