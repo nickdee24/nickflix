@@ -49,7 +49,8 @@ import android.widget.Toast;
  *   - a pointer you steer with the remote's D-pad (OK = click),
  *   - Play/Pause, Rewind and Fast-forward buttons mapped to the player,
  *   - a launcher tile on Fire TV / Android TV, screen kept awake, no browser bars,
- *   - a waiting screen while Render's free plan wakes up, with automatic retry.
+ *   - a waiting screen while Render's free plan wakes up, with automatic retry,
+ *   - updates: it offers, downloads and installs new versions of itself (see Updater).
  *
  * The app adds "NickFlixApp/x" to its user agent; the site uses that to start
  * in cinema view and skip its "Go fullscreen?" prompt.
@@ -58,7 +59,6 @@ public class MainActivity extends Activity {
 
     static final String HOME = "https://nickflix.onrender.com/";
     static final String HOME_HOST = "nickflix.onrender.com";
-    static final String VERSION = "1.0";
     private static final int FILE_REQUEST = 41;
     private static final int RETRY_MS = 6000;
     private static final int CURSOR_HIDE_MS = 6000;
@@ -67,6 +67,7 @@ public class MainActivity extends Activity {
 
     private FrameLayout root;
     private WebView web;
+    private Updater updater;
     private CursorView cursor;
     private View splash;
     private TextView splashText;
@@ -91,6 +92,7 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         pageScale = getResources().getDisplayMetrics().density;
         tv = isTv();
+        updater = new Updater(this);
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -125,6 +127,7 @@ public class MainActivity extends Activity {
         web.onResume();
         web.resumeTimers();
         hideSystemBars();
+        updater.onResume(); // looks for a new version (at most every few hours)
     }
 
     @Override
@@ -184,7 +187,7 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setUserAgentString(s.getUserAgentString() + " NickFlixApp/" + VERSION + (tv ? " TV" : ""));
+        s.setUserAgentString(s.getUserAgentString() + " NickFlixApp/" + updater.currentName() + (tv ? " TV" : ""));
         CookieManager.getInstance().setAcceptCookie(true);
 
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -464,14 +467,15 @@ public class MainActivity extends Activity {
     }
 
     private void showMenu() {
-        final String[] items = { "Reload", "Back to Screen 1", "How the remote works", "Close NickFlix" };
+        final String[] items = { "Reload", "Back to Screen 1", "Check for updates", "How the remote works", "Close NickFlix" };
         new AlertDialog.Builder(this)
-                .setTitle("NickFlix " + VERSION)
+                .setTitle("NickFlix " + updater.currentName())
                 .setItems(items, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface dialog, int which) {
                         if (which == 0) retryNow();
                         else if (which == 1) { showSplash("Opening Screen 1…"); web.loadUrl(HOME); }
-                        else if (which == 2) showRemoteHelp();
+                        else if (which == 2) updater.check(true);
+                        else if (which == 3) showRemoteHelp();
                         else finish();
                     }
                 })

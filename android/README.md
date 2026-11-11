@@ -10,8 +10,18 @@ A small full-screen app that opens Screen 1 (`https://nickflix.onrender.com`). T
 | OK / Select | Click |
 | Play/Pause | Play or pause for everyone |
 | Rewind / Fast-forward | Skip 10 seconds |
-| Menu | Reload, back to Screen 1, help, close |
+| Menu | Reload, back to Screen 1, check for updates, help, close |
 | Back | Go back; press twice to leave |
+
+## Updates
+
+Changes to the **website** need no app update: the app shows the live site, so they appear on the next load.
+
+Changes to **this folder** are built by `.github/workflows/android-app.yml` on every push to `main` and published to the repo's `app` release as `NickFlix.apk` and `version.json`. The app checks `version.json` when it opens (and every few hours), shows "A new update is available", downloads the APK and hands it to Android's installer. Android always asks the person to confirm the install, and on Android 8+ to allow NickFlix to install apps the first time. Afterwards the app reopens by itself on Android 9 / Fire OS 7 and older; on newer versions, press **Open** on the installer's last screen.
+
+Latest APK, for a first install: https://github.com/nickdee24/nickflix/releases/download/app/NickFlix.apk
+
+The workflow needs the `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD` repository secrets.
 
 ## Building
 
