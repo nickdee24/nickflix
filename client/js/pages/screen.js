@@ -21,6 +21,9 @@ import { toast } from '../components/toast.js'
 import { askUsername } from '../components/username.js'
 import { modal } from '../components/modal.js'
 
+/** True inside the NickFlix Android / Fire TV app (it adds this to its user agent). */
+const IN_APP = /NickFlixApp/.test(navigator.userAgent)
+
 const REACTIONS = ['👍', '❤️', '😂', '😮']
 const VIDEO_EXT = /\.(mp4|m4v|mkv|webm|mov|avi|wmv|flv|mpg|mpeg|ts|m2ts|mts|vob|divx|ogv|3gp)$/i
 const SUB_EXT = /\.(srt|vtt|ass|ssa)$/i
@@ -154,8 +157,10 @@ export function screenPage (params, shell) {
       h('div.reactions', REACTIONS.map((e, i) => h('button', { 'aria-label': `React ${e}`, title: `React (Shift+${i + 1})`, onclick: (ev) => react(e, ev.currentTarget) }, e)))
     )
     rail.chat = h('section.rail-card.grow', chat.el)
-    shell.setRail(railRoot())
+    shell.setRail(theatreOn ? null : railRoot())
     wireDrop()
+    // Cinema view is remembered per browser; the Android / Fire TV app starts in it.
+    setTheatre(settings.get('immersive') ?? IN_APP)
   }
   const railRoot = () => h('div', { style: { display: 'contents' } }, rail.screenCard, rail.people, rail.reactions, rail.chat)
 
@@ -177,7 +182,6 @@ export function screenPage (params, shell) {
     libSlot.replaceChildren(...(S.admin && !st.media ? [libraryPanel()] : []))
     if (st.media) { if (remount) mountPlayer(st.media); return }
     S.sync?.destroy(); S.sync = null
-    setTheatre(false)
     S.pv?.destroy(); S.pv = null
     S.playerReady = false
     mainSlot.replaceChildren(S.preparing ? preparingView() : emptyScreen())
@@ -223,6 +227,8 @@ export function screenPage (params, shell) {
       h('h3', 'Drop a movie here'),
       h('p.muted', `Drag a file from ${S.hostAdmin?.folders?.[0] ? `"${S.hostAdmin.folders[0]}"` : 'your movie folder'} onto the screen, or pick one below.`),
       hostLine(),
+      // In cinema view the movie list (below the room) is covered: step out to pick, and the view comes back with the movie.
+      h('button.btn.primary.only-theatre', { onclick: (e) => { e.stopPropagation(); setTheatre(false) } }, icon('film'), 'Pick a movie'),
       missing.length ? h('div.host-line.warn', h('span.dot.warn'), `Folder not found on the PC: ${missing.join(', ')}`) : null
     ))
   }
@@ -301,36 +307,44 @@ export function screenPage (params, shell) {
     })
   }
 
-  // ---------------------------------------------------------------- theatre mode
-  // The screen moves to the middle of the window and everything else goes
-  // almost black. Clicking anywhere outside the picture (or Esc) brings the
-  // lights back.
-  let theatreBackdrop = null
-  function setTheatre (on) {
+  // ---------------------------------------------------------------- cinema view (theatre mode)
+  // The auditorium fills the whole window: walls, seats and ceiling run edge to
+  // edge and the picture sits where the cinema screen is. It belongs to the
+  // page, not the player, so it stays on between movies and in the lobby.
+  // T, Esc, the player's theatre button or the corner button turn it off.
+  let theatreOn = false
+  function setTheatre (on, remember = false) {
     on = !!on
-    if (!on && !theatreBackdrop) return
+    if (remember) settings.set('immersive', on)
     if (S.pv && S.pv.theatre !== on) { S.pv.theatre = on; S.pv.el.classList.toggle('theatre', on); S.pv.theatreBtn?.classList.toggle('on', on) }
+    if (on === theatreOn) return
+    theatreOn = on
     cinema.el.classList.toggle('theatre', on)
     document.documentElement.classList.toggle('theatre-on', on)
     shell.setRail(on ? null : railRoot())
-    if (on) {
-      theatreBackdrop = h('div.theatre-backdrop', { title: 'Click to bring the lights back', onclick: () => setTheatre(false) })
-      document.body.append(theatreBackdrop)
-    } else {
-      theatreBackdrop?.remove()
-      theatreBackdrop = null
-    }
+    viewBtn.title = on ? 'Leave cinema view (Esc)' : 'Cinema view: fill the window (T)'
+    viewBtn.setAttribute('aria-label', viewBtn.title)
+    viewBtn.replaceChildren(icon(on ? 'exitFullscreen' : 'theatre'), h('span', on ? 'Exit cinema view' : 'Cinema view'))
   }
-  d.listen(document, 'keydown', (e) => { if (e.key === 'Escape' && theatreBackdrop && !document.fullscreenElement) setTheatre(false) })
+  const viewBtn = h('button.cin-view-btn', { onclick: (e) => { e.stopPropagation(); setTheatre(!theatreOn, true) } }, icon('theatre'), h('span', 'Cinema view'))
+  viewBtn.title = 'Cinema view: fill the window (T)'
+  cinema.el.append(viewBtn)
+  d.listen(document, 'keydown', (e) => {
+    if (e.target.closest?.('input, textarea, select') || e.ctrlKey || e.metaKey || e.altKey) return
+    if (document.querySelector('.modal-backdrop, .modal')) return
+    if (e.key === 'Escape' && theatreOn && !document.fullscreenElement) setTheatre(false, true)
+    else if ((e.key === 't' || e.key === 'T') && !S.pv) setTheatre(!theatreOn, true) // with a player on screen, it handles T
+  })
 
   // ---------------------------------------------------------------- player
   function mountPlayer (m) {
     S.sync?.destroy(); S.sync = null
-    setTheatre(false)
     S.pv?.destroy(); S.pv = null
     S.playerReady = false
 
     const pv = new PlayerView({ title: m.title, badges: mediaBadges(m), subtitles: m.subtitles })
+    setTheatre(settings.get('immersive') ?? IN_APP) // back into cinema view if the host stepped out to pick a movie
+    if (theatreOn) { pv.theatre = true; pv.el.classList.add('theatre'); pv.theatreBtn?.classList.add('on') }
     const sync = new RoomSync({ pv, getRoom: () => S.state, meId: S.me })
     pv.controller = sync.controller
     S.pv = pv
@@ -355,7 +369,7 @@ export function screenPage (params, shell) {
     sync.on('activity', (text) => toast(text, 'info', 1800))
     sync.on('scheduled', ({ wait, action }) => runIntro(wait, action === 'start'))
     pv.on('reaction-key', (i) => react(REACTIONS[i]))
-    pv.on('theatre', (on) => setTheatre(on))
+    pv.on('theatre', (on) => setTheatre(on, true))
     pv.on('autoplay-blocked', () => {
       pv.engine.muted(true)
       pv.engine.play()
@@ -445,7 +459,7 @@ export function screenPage (params, shell) {
     // titles ("NickFlix presents", then the movie's name) end as it starts.
     const zoomed = (lights + zoom) * 1000
     const titlesAt = first ? Math.max(zoomed, wait - TITLES_MS) : wait
-    if (first && S.pv && !document.fullscreenElement) {
+    if (first && S.pv && !document.fullscreenElement && !IN_APP) { // the app already fills the screen
       S.promptTimer = setTimeout(() => openPrompt(titlesAt - zoomed), zoomed)
     }
     if (first && S.pv && wait - titlesAt >= 3000) {
@@ -523,7 +537,7 @@ export function screenPage (params, shell) {
         tile('sync', 'Sync now', () => S.sync?.resync()),
         tile('cc', 'Subtitles', () => pv.cycleSubtitles()),
         tile('pip', 'Picture in picture', () => pv.togglePip()),
-        tile('theatre', 'Theatre', () => pv.toggleTheatre()),
+        tile('theatre', 'Cinema view', () => pv.toggleTheatre()),
         tile('fullscreen', 'Fullscreen', () => pv.toggleFullscreen())
       )
     }
@@ -728,6 +742,7 @@ export function screenPage (params, shell) {
       closePrompt()
       clearTitles()
       setTheatre(false)
+      viewBtn.remove()
       S.sync?.destroy()
       S.pv?.destroy()
     }
@@ -798,7 +813,7 @@ function buildCinema (screenEl) {
 
 /** Reaction float when there's no player on screen. */
 function floatReaction (container, { emoji, name, color }) {
-  container.style.position = 'relative'
+  if (getComputedStyle(container).position === 'static') container.style.position = 'relative'
   const n = h('div.float-react', { style: { left: `${15 + Math.random() * 65}%`, bottom: '40px', '--drift': `${(Math.random() - 0.5) * 60}px`, zIndex: 5 } },
     h('span.e', emoji), h('span.who', { style: { background: color } }, name))
   container.append(n)

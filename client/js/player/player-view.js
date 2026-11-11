@@ -90,7 +90,7 @@ export class PlayerView extends Emitter {
     this.ccBtn = cb('cc', 'Subtitles (C)', (e) => this.#openMenu('subs', e.currentTarget))
     this.qualityBtn = cb('quality', 'Quality', (e) => this.#openMenu('quality', e.currentTarget))
     this.pipBtn = cb('pip', 'Picture in picture (P)', () => this.togglePip(), '.hide-sm')
-    this.theatreBtn = cb('theatre', 'Theatre mode (T)', () => this.toggleTheatre(), '.hide-sm')
+    this.theatreBtn = cb('theatre', 'Cinema view (T)', () => this.toggleTheatre(), '.hide-sm')
     this.fsBtn = cb('fullscreen', 'Fullscreen (F)', () => this.toggleFullscreen())
     if (!document.pictureInPictureEnabled) this.pipBtn.disabled = true
 
